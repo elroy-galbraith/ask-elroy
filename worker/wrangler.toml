@@ -1,0 +1,7 @@
+name = "ask-elroy"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Optional: pin the model without editing code.
+# [vars]
+# MODEL = "claude-haiku-4-5"
