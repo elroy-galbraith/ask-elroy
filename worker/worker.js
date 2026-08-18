@@ -10,11 +10,11 @@
  *   npm i -g wrangler
  *   wrangler login
  *   wrangler deploy
- *   wrangler secret put ANTHROPIC_API_KEY
- * Then paste the worker URL into CONFIG.generatorUrl in index.html.
+ *   wrangler secret put OPENROUTER_API_KEY
+ * Then paste the worker URL into CONFIG.generatorUrl in src/engine.js and rebuild.
  */
 
-const MODEL_DEFAULT = "claude-haiku-4-5";
+const MODEL_DEFAULT = "anthropic/claude-haiku-4-5";
 const MAX_TOKENS = 700;
 const MAX_Q = 500;
 const MAX_PASSAGES = 8;
@@ -58,20 +58,22 @@ export default {
     const payload = {
       model: env.MODEL || MODEL_DEFAULT,
       max_tokens: MAX_TOKENS,
-      system: SYSTEM,
       stream: true,
-      messages: [{
-        role: "user",
-        content: `<passages>\n${context}\n</passages>\n\n<question>\n${question}\n</question>\n\nAnswer from the passages only, in the first person, with [n] citations.`
-      }]
+      stream_options: { include_usage: true },
+      messages: [
+        { role: "system", content: SYSTEM },
+        {
+          role: "user",
+          content: `<passages>\n${context}\n</passages>\n\n<question>\n${question}\n</question>\n\nAnswer from the passages only, in the first person, with [n] citations.`
+        }
+      ]
     };
 
-    const upstream = await fetch("https://api.anthropic.com/v1/messages", {
+    const upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-api-key": env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01"
+        "authorization": `Bearer ${env.OPENROUTER_API_KEY}`
       },
       body: JSON.stringify(payload)
     });

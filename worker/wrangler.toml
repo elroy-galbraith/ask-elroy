@@ -2,6 +2,6 @@ name = "ask-elroy"
 main = "worker.js"
 compatibility_date = "2026-01-01"
 
-# Optional: pin the model without editing code.
+# Optional: pin the model without editing code (use OpenRouter model ids).
 # [vars]
-# MODEL = "claude-haiku-4-5"
+# MODEL = "anthropic/claude-haiku-4-5"

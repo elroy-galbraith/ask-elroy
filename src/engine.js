@@ -189,9 +189,9 @@ async function generate(question, hits, onToken){
   const ct = res.headers.get("content-type") || "";
   if(!ct.includes("event-stream")){
     const j = await res.json();
-    const text = j.text || (j.content && j.content[0] && j.content[0].text) || "";
+    const text = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || "";
     onToken(text);
-    return { text, usage: j.usage || null };
+    return { text, usage: j.usage ? { input_tokens: j.usage.prompt_tokens || 0, output_tokens: j.usage.completion_tokens || 0 } : null };
   }
   const reader = res.body.getReader(), dec = new TextDecoder();
   let buf = "", text = "", usage = { input_tokens: 0, output_tokens: 0 };
@@ -204,13 +204,12 @@ async function generate(question, hits, onToken){
       const line = block.split("\n").find(l => l.startsWith("data:"));
       if(!line) continue;
       let ev; try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
-      if(ev.type === "content_block_delta" && ev.delta && ev.delta.text){
-        text += ev.delta.text; onToken(ev.delta.text);
+      const delta = ev.choices && ev.choices[0] && ev.choices[0].delta;
+      if(delta && delta.content){ text += delta.content; onToken(delta.content); }
+      if(ev.usage){
+        usage.input_tokens = ev.usage.prompt_tokens || 0;
+        usage.output_tokens = ev.usage.completion_tokens || 0;
       }
-      if(ev.type === "message_start" && ev.message && ev.message.usage)
-        usage.input_tokens = ev.message.usage.input_tokens || 0;
-      if(ev.type === "message_delta" && ev.usage)
-        usage.output_tokens = ev.usage.output_tokens || 0;
     }
   }
   return { text, usage };
