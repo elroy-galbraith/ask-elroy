@@ -177,12 +177,12 @@ async function retrieve(query, k){
 /* ---------------- 5. generation (proxied) ---------------- */
 const SYS_NOTE = "grounded generation, first person, citations required";
 
-async function generate(question, hits, onToken){
+async function generate(question, hits, onToken, history){
   const passages = hits.map((h,i) => ({ n: i+1, title: h.p.title, text: h.p.text }));
   const res = await fetch(CONFIG.generatorUrl, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ question, passages })
+    body: JSON.stringify({ question, passages, history: history || [] })
   });
   if(!res.ok) throw new Error("generator returned " + res.status);
 

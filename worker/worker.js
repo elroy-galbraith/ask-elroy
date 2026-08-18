@@ -51,6 +51,11 @@ export default {
     if (!question) return json({ error: "question required" }, 400);
     if (!passages.length) return json({ error: "passages required" }, 400);
 
+    const history = (Array.isArray(body.history) ? body.history : [])
+      .slice(-6)
+      .filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+      .map(m => ({ role: m.role, content: String(m.content).slice(0, 2000) }));
+
     const context = passages
       .map((p, i) => `[${i + 1}] ${String(p.title || "").slice(0, 200)}\n${String(p.text || "").slice(0, 1500)}`)
       .join("\n\n");
@@ -62,6 +67,7 @@ export default {
       stream_options: { include_usage: true },
       messages: [
         { role: "system", content: SYSTEM },
+        ...history,
         {
           role: "user",
           content: `<passages>\n${context}\n</passages>\n\n<question>\n${question}\n</question>\n\nAnswer from the passages only, in the first person, with [n] citations.`

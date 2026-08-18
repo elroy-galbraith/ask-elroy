@@ -80,6 +80,7 @@ function renderAnswer(text, hits){
 }
 
 /* ---- the ask loop ---- */
+const history = [];   // [{role:"user"|"assistant", content:string}], last 3 exchanges
 let busy = false;
 async function ask(text){
   const q = String(text).trim();
@@ -110,7 +111,7 @@ async function ask(text){
       const out = await generate(q, r.hits, tok => {
         acc += tok;
         holder.innerHTML = renderAnswer(acc, r.hits);
-      });
+      }, history);
       t.msGen = performance.now() - g0;
       t.usage = out.usage;
       t.ground = checkGrounding(out.text, r.hits);
@@ -125,6 +126,8 @@ async function ask(text){
       holder.innerHTML = renderAnswer(out.text, r.hits)
         + (t.ground.ok ? "" : '<p class="flag">Groundedness flag: this answer did not cite its sources cleanly. Treat it with suspicion and check the passages below.</p>')
         + sourcesHTML(r.hits) + traceHTML(t);
+      history.push({role:"user", content: q}, {role:"assistant", content: out.text});
+      if(history.length > 6) history.splice(0, 2);
     } else {
       // retrieval-only mode: return the curated source answer verbatim, no paraphrase
       const docIdx = IDS.indexOf(r.hits[0].p.docId);
