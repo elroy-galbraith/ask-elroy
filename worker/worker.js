@@ -14,7 +14,7 @@
  * Then paste the worker URL into CONFIG.generatorUrl in src/engine.js and rebuild.
  */
 
-const MODEL_DEFAULT = "anthropic/claude-haiku-4-5";
+const MODEL_DEFAULT = "nvidia/nemotron-3-ultra-550b-a55b:free";
 const MAX_TOKENS = 700;
 const MAX_Q = 500;
 const MAX_PASSAGES = 8;
