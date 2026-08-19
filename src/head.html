@@ -165,12 +165,17 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
     <div style="min-width:0">
 
       <!-- read-me -->
-      <div class="blueprint" style="padding:20px 22px;margin-bottom:28px">
+      <details class="blueprint" style="padding:16px 22px;margin-bottom:28px">
         <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-        <div class="section-label" style="margin-bottom:9px">Read me first</div>
-        <p style="margin:0 0 8px;font-size:15.5px;max-width:64ch;text-wrap:pretty">I answer recruiter questions about Elroy — his experience, how he works, his stack, and what he wants next — from a fixed corpus he wrote about his own work.</p>
-        <p style="margin:0;font-size:15.5px;max-width:64ch;text-wrap:pretty;color:color-mix(in srgb,var(--color-text) 70%,transparent)">Every answer carries the passages it was built from and a full trace. Below the scope gate I refuse before any model call, so an out-of-scope question costs nothing and cannot be answered wrongly.</p>
-      </div>
+        <summary style="list-style:none;cursor:pointer;display:flex;align-items:center;gap:9px;user-select:none">
+          <span style="display:inline-block;color:var(--color-accent);font-size:10px;line-height:1">▶</span>
+          <span class="section-label" style="margin:0">Read me first</span>
+        </summary>
+        <div style="margin-top:12px">
+          <p style="margin:0 0 8px;font-size:15.5px;max-width:64ch;text-wrap:pretty">I answer recruiter questions about Elroy — his experience, how he works, his stack, and what he wants next — from a fixed corpus he wrote about his own work.</p>
+          <p style="margin:0;font-size:15.5px;max-width:64ch;text-wrap:pretty;color:color-mix(in srgb,var(--color-text) 70%,transparent)">Every answer carries the passages it was built from and a full trace. Below the scope gate I refuse before any model call, so an out-of-scope question costs nothing and cannot be answered wrongly.</p>
+        </div>
+      </details>
 
       <!-- message log -->
       <div id="log" role="log" aria-live="polite" aria-label="Conversation" style="display:flex;flex-direction:column;gap:28px"></div>
