@@ -685,12 +685,14 @@ async function generate(question, hits, onToken, history){
   const ct = res.headers.get("content-type") || "";
   if(!ct.includes("event-stream")){
     const j = await res.json();
-    const text = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || "";
+    const raw = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || "";
+    const text = raw.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
     onToken(text);
     return { text, usage: j.usage ? { input_tokens: j.usage.prompt_tokens || 0, output_tokens: j.usage.completion_tokens || 0 } : null };
   }
   const reader = res.body.getReader(), dec = new TextDecoder();
   let buf = "", text = "", usage = { input_tokens: 0, output_tokens: 0 };
+  let inThink = false, thinkBuf = "";
   for(;;){
     const { done, value } = await reader.read();
     if(done) break;
@@ -701,7 +703,33 @@ async function generate(question, hits, onToken, history){
       if(!line) continue;
       let ev; try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
       const delta = ev.choices && ev.choices[0] && ev.choices[0].delta;
-      if(delta && delta.content){ text += delta.content; onToken(delta.content); }
+      if(delta && delta.content){
+        let chunk = delta.content;
+        if(!inThink){
+          const s = chunk.indexOf("<think>");
+          if(s === -1){
+            text += chunk; onToken(chunk);
+          } else {
+            const before = chunk.slice(0, s);
+            if(before){ text += before; onToken(before); }
+            inThink = true; thinkBuf = chunk.slice(s + 7);
+            const e = thinkBuf.indexOf("</think>");
+            if(e !== -1){
+              const after = thinkBuf.slice(e + 8);
+              thinkBuf = ""; inThink = false;
+              if(after){ text += after; onToken(after); }
+            }
+          }
+        } else {
+          thinkBuf += chunk;
+          const e = thinkBuf.indexOf("</think>");
+          if(e !== -1){
+            const after = thinkBuf.slice(e + 8);
+            thinkBuf = ""; inThink = false;
+            if(after){ text += after; onToken(after); }
+          }
+        }
+      }
       if(ev.usage){
         usage.input_tokens = ev.usage.prompt_tokens || 0;
         usage.output_tokens = ev.usage.completion_tokens || 0;
