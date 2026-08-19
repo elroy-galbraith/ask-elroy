@@ -62,12 +62,15 @@ const GOLDEN = [
 ];
 
 /* ---------- MULTI-TURN RETRIEVAL: follow-up questions must stay on topic ----------
-   Each entry simulates the query-augmentation the chat performs: if the follow-up is
-   short (≤5 words), it is prefixed with the previous question before retrieval.
-   The suite checks that the expected document still surfaces in top-5 — directly
-   testing the drift failure where "tell me more" retrieves general bio instead of the
-   topic the conversation was on. */
+   Each entry simulates the query-augmentation the chat performs: if the follow-up has
+   ≤5 content words (stop words excluded, via toks()), it is prefixed with the previous
+   question before retrieval. The suite checks that the expected document still surfaces
+   in top-5 — directly testing the drift failure where "tell me more" retrieves general
+   bio instead of the topic the conversation was on.
+   The second block covers stop-word-heavy follow-ups: many raw words, few content words,
+   where toks() correctly identifies them as underspecified and triggers augmentation. */
 const CONV_GOLDEN = [
+  /* ---- short follow-ups (low raw word count) ---- */
   { prior: "have you done anything in the real estate industry",
     follow: "tell me more",        expect: "aeon",           label: "real estate → tell me more" },
   { prior: "what is he doing right now",
@@ -84,6 +87,19 @@ const CONV_GOLDEN = [
     follow: "tell me more",        expect: "education",      label: "education → tell me more" },
   { prior: "has he built a rag system over financial documents",
     follow: "what technology did he use", expect: "jse-chatbot", label: "jse chatbot → technology" },
+  /* ---- stop-word-heavy follow-ups (high raw count, low content count) ---- */
+  { prior: "what is he doing right now",
+    follow: "what did he do before that",
+    expect: "economist",           label: "current role → prior career (stop-heavy)" },
+  { prior: "what did he study at university",
+    follow: "and what was his thesis on",
+    expect: "education",           label: "education → thesis elaboration (stop-heavy)" },
+  { prior: "tell me about the credit decisioning work",
+    follow: "by that i meant how do you know it works",
+    expect: "odin-eval",           label: "odin → rephrase how-do-you-know (stop-heavy)" },
+  { prior: "which frameworks and cloud does he use",
+    follow: "what about the tooling he mentioned",
+    expect: "stack",               label: "stack → tooling rephrase (stop-heavy)" },
 ];
 
 /* ---------- GENERATION QUALITY: scripted conversations scored on citation faithfulness

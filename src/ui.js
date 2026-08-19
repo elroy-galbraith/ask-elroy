@@ -199,7 +199,7 @@ async function runGenEval(){
       for(const turn of scenario.turns){
         // mirror the augmentation the chat does for short follow-ups
         let retrievalQ = turn.q;
-        if(hist.length > 0 && turn.q.split(/\s+/).length <= 5){
+        if(hist.length > 0 && toks(turn.q).length <= 5){
           const prev = [...hist].reverse().find(m => m.role === "user");
           if(prev) retrievalQ = prev.content + " " + turn.q;
         }
@@ -359,7 +359,7 @@ async function runEval(){
   // pre-embed every eval query once, then reuse
   if(!lexMode){
     const gq = GOLDEN.map(g => g[0]), oq = OOS.map(o => o[0]);
-    const cq = CONV_GOLDEN.map(c => c.follow.split(/\s+/).length <= 5 ? c.prior + " " + c.follow : c.follow);
+    const cq = CONV_GOLDEN.map(c => toks(c.follow).length <= 5 ? c.prior + " " + c.follow : c.follow);
     const gv = await batchEmbed(gq), ov = await batchEmbed(oq), cv = await batchEmbed(cq);
     gq.forEach((q,i) => state.qcache.set(q, gv[i]));
     oq.forEach((q,i) => state.qcache.set(q, ov[i]));
@@ -404,7 +404,7 @@ async function runEval(){
   let convR1 = 0, convR3 = 0;
   const convFails = [];
   for(const c of CONV_GOLDEN){
-    const retrievalQ = c.follow.split(/\s+/).length <= 5 ? c.prior + " " + c.follow : c.follow;
+    const retrievalQ = toks(c.follow).length <= 5 ? c.prior + " " + c.follow : c.follow;
     const r = await retrieve(retrievalQ, 5);
     const docs = []; r.hits.forEach(h => { if(!docs.includes(h.p.docId)) docs.push(h.p.docId); });
     const rank = docs.indexOf(c.expect);
