@@ -48,6 +48,7 @@ function updateSessionSidebar(){
   $("#sb-gens").textContent = state.gens + " / " + CONFIG.maxGenPerSession;
   $("#sb-toks").textContent = state.tokIn + " / " + state.tokOut;
   $("#sb-spend").textContent = "$" + cost.toFixed(5);
+  refreshCost();
 }
 
 /* ---- trace panel ---- */
@@ -162,22 +163,26 @@ function renderCitesInMsg(el, hits, passCount){
   const cites = el.querySelector(".msg-cites");
   if(!hits || !hits.length){ cites.innerHTML = ""; return; }
   cites.innerHTML = `
-    <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim);margin-bottom:10px">Retrieved passages · ${hits.length} of ${passCount}</div>
-    <div style="display:grid;gap:12px">
-      ${hits.map((h,i) => `
-        <div class="blueprint" style="display:grid;grid-template-columns:32px minmax(0,1fr) 92px;gap:14px;padding:11px 14px">
-          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-          <span class="mono" style="font-size:13px;color:var(--color-accent);font-weight:700">[${i+1}]</span>
-          <div style="min-width:0">
-            <div class="mono" style="font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--color-dim);margin-bottom:3px">${esc(h.p.pid)}</div>
-            <div style="font-size:13.5px;line-height:1.5;text-wrap:pretty">${esc(h.p.text)}</div>
-          </div>
-          <div style="text-align:right">
-            <div class="mono" style="font-size:12.5px">${h.cos !== null ? h.cos.toFixed(3) : "—"}</div>
-            <div style="font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--color-dim)">cosine</div>
-          </div>
-        </div>`).join("")}
-    </div>`;
+    <details style="margin-top:4px">
+      <summary style="cursor:pointer;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-dim);list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
+        <span style="font-family:var(--font-mono)">▸</span> Retrieved passages · ${hits.length} of ${passCount}
+      </summary>
+      <div style="display:grid;gap:12px;margin-top:12px">
+        ${hits.map((h,i) => `
+          <div class="blueprint" style="display:grid;grid-template-columns:32px minmax(0,1fr) 92px;gap:14px;padding:11px 14px">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <span class="mono" style="font-size:13px;color:var(--color-accent);font-weight:700">[${i+1}]</span>
+            <div style="min-width:0">
+              <div class="mono" style="font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--color-dim);margin-bottom:3px">${esc(h.p.pid)}</div>
+              <div style="font-size:13.5px;line-height:1.5;text-wrap:pretty">${esc(h.p.text)}</div>
+            </div>
+            <div style="text-align:right">
+              <div class="mono" style="font-size:12.5px">${h.cos !== null ? h.cos.toFixed(3) : "—"}</div>
+              <div style="font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--color-dim)">cosine</div>
+            </div>
+          </div>`).join("")}
+      </div>
+    </details>`;
 }
 
 function addTraceLink(el){
@@ -507,21 +512,191 @@ async function runEval(){
   if(btn) btn.textContent = "Run the suite again";
 }
 
+/* =====================================================================
+   GENERATION QUALITY EVAL
+   ===================================================================== */
+function updateGenCostEst(){
+  const el = $("#genestcost");
+  if(!el) return;
+  const modelB = $("#modelB");
+  const models = modelB && modelB.value.trim() ? 2 : 1;
+  const turns = GEN_SUITE.flatMap(s => s.turns).filter(t => !t.expect_refuse).length;
+  el.textContent = `est. $${(turns * models * 0.003).toFixed(3)} (${turns * models} model calls)`;
+}
+
+async function runGenEval(){
+  const genout = $("#genout");
+  if(!CONFIG.generatorUrl){
+    genout.innerHTML = '<p style="color:var(--color-bad)">No generator URL configured — generation quality eval requires the live worker.</p>';
+    return;
+  }
+  const modelA = ($("#modelA").value || "").trim();
+  const modelB = ($("#modelB").value || "").trim();
+  const models = [modelA, modelB || null].filter(Boolean);
+  genout.innerHTML = '<p style="color:var(--color-dim);font-style:italic">running generation quality suite…</p>';
+
+  const results = {};
+  for(const model of models){
+    results[model] = [];
+    for(const scenario of GEN_SUITE){
+      const hist = [];
+      for(const turn of scenario.turns){
+        let retrievalQ = turn.q;
+        if(hist.length > 0 && toks(turn.q).length <= 5){
+          const prev = [...hist].reverse().find(m => m.role === "user");
+          if(prev) retrievalQ = prev.content + " " + turn.q;
+        }
+        const r = await retrieve(retrievalQ);
+        if(turn.expect_refuse){
+          results[model].push({scenario:scenario.label, turn:turn.q,
+            expect_refuse:true, refused_ok:r.conf < gate(), conf:r.conf});
+          break;
+        }
+        if(!turn.expect_doc){
+          let txt = "";
+          try{ const o = await generate(turn.q, r.hits, t=>{txt+=t;}, hist, model||undefined); txt=o.text; }
+          catch(e){ break; }
+          hist.push({role:"user",content:turn.q},{role:"assistant",content:txt});
+          if(hist.length > 6) hist.splice(0,2);
+          continue;
+        }
+        if(r.conf < gate()){
+          results[model].push({scenario:scenario.label, turn:turn.q,
+            expect_doc:turn.expect_doc, gate_miss:true, conf:r.conf});
+          break;
+        }
+        let genText = "", genErr = null;
+        try{
+          const o = await generate(turn.q, r.hits, tok=>{genText+=tok;}, hist, model||undefined);
+          genText = o.text;
+          if(o.usage){ state.tokIn+=o.usage.input_tokens; state.tokOut+=o.usage.output_tokens;
+            state.costUSD+=(o.usage.input_tokens/1e6)*CONFIG.price.in+(o.usage.output_tokens/1e6)*CONFIG.price.out; }
+        } catch(e){ genErr=e.message; }
+        state.gens++;
+        hist.push({role:"user",content:turn.q},{role:"assistant",content:genText});
+        if(hist.length > 6) hist.splice(0,2);
+        if(genErr){ results[model].push({scenario:scenario.label, turn:turn.q, expect_doc:turn.expect_doc, error:genErr}); break; }
+        const ground = checkGrounding(genText, r.hits);
+        let alignment = null;
+        if(state.mode === "hybrid" && state.embedder){
+          const pidx = state.passages.findIndex(p => p.docId === turn.expect_doc);
+          if(pidx >= 0){
+            try{
+              const av = (await embed([genText.slice(0,500)]))[0];
+              if(av && av.length) alignment = dot(av, state.vecs[pidx]);
+            } catch(_){}
+          }
+        }
+        results[model].push({scenario:scenario.label, turn:turn.q,
+          expect_doc:turn.expect_doc, citation_ok:ground.ok,
+          coverage:ground.coverage, alignment});
+      }
+    }
+  }
+  refreshCost();
+  renderGenResults(results, models, genout);
+}
+
+function renderGenResults(results, models, genout){
+  let html = "";
+  for(const model of models){
+    const scored = results[model].filter(r => r.expect_doc && !r.error && !r.gate_miss);
+    const citOk = scored.filter(r => r.citation_ok).length;
+    const avgCov = scored.length ? scored.reduce((a,r)=>a+r.coverage,0)/scored.length : 0;
+    const aligned = scored.filter(r => r.alignment !== null && r.alignment !== undefined);
+    const avgAlign = aligned.length ? aligned.reduce((a,r)=>a+r.alignment,0)/aligned.length : null;
+    const refRows = results[model].filter(r => r.expect_refuse);
+    const refOk = refRows.filter(r => r.refused_ok).length;
+    html += `<p style="margin:14px 0 8px;font-size:12px;color:var(--color-dim)">Model: <span style="color:var(--color-text);font-weight:600">${esc(model)}</span></p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:14px">
+      <div class="blueprint" style="padding:10px 12px"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div class="mono" style="font-size:22px">${citOk}/${scored.length}</div><div style="font-size:11px;color:var(--color-dim)">citation OK</div></div>
+      <div class="blueprint" style="padding:10px 12px"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div class="mono" style="font-size:22px">${(avgCov*100).toFixed(0)}%</div><div style="font-size:11px;color:var(--color-dim)">avg coverage</div></div>
+      ${avgAlign !== null ? `<div class="blueprint" style="padding:10px 12px"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div class="mono" style="font-size:22px">${avgAlign.toFixed(2)}</div><div style="font-size:11px;color:var(--color-dim)">topic alignment</div></div>` : ""}
+      ${refRows.length ? `<div class="blueprint" style="padding:10px 12px"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div class="mono" style="font-size:22px">${refOk}/${refRows.length}</div><div style="font-size:11px;color:var(--color-dim)">injection refused</div></div>` : ""}
+    </div>`;
+  }
+
+  const colHeader = models.length === 1
+    ? `<th>citation</th><th>coverage</th><th>topic align</th>`
+    : `<th>A cite</th><th>A cov</th><th>A align</th><th>B cite</th><th>B cov</th><th>B align</th>`;
+  html += `<div style="margin-top:4px;margin-bottom:8px;font-size:12px;font-weight:600;color:var(--color-dim);letter-spacing:.08em;text-transform:uppercase">Per-scenario</div>
+  <table class="table"><thead><tr><th>scenario</th><th>turn</th>${colHeader}</tr></thead><tbody>`;
+
+  const allRows = results[models[0]];
+  for(const rowA of allRows){
+    const rowB = models[1] ? (results[models[1]]||[]).find(r=>r.scenario===rowA.scenario&&r.turn===rowA.turn) : null;
+    const cell = (row, field, fmt) => {
+      if(!row) return "<td>—</td>";
+      if(row.error) return `<td style="color:var(--color-bad)" title="${esc(row.error)}">err</td>`;
+      if(row.gate_miss) return `<td style="color:var(--color-warn)" colspan="${models.length===1?3:1}">gate</td>`;
+      const v = row[field];
+      if(v === null || v === undefined) return "<td>n/a</td>";
+      return `<td>${fmt(v)}</td>`;
+    };
+    if(rowA.expect_refuse){
+      const msg = r => r ? (r.refused_ok ? "✓ refused" : `✗ leaked (${r.conf?r.conf.toFixed(3):"?"})`) : "—";
+      html += `<tr><td>${esc(rowA.scenario)}</td><td>${esc(rowA.turn)}</td>
+        <td colspan="${models.length===1?3:6}" style="color:${rowA.refused_ok?"var(--color-ok)":"var(--color-bad)"}">${msg(rowA)}${rowB?" / "+msg(rowB):""}</td></tr>`;
+    } else if(rowA.gate_miss){
+      const cA = rowA.conf!==undefined?rowA.conf.toFixed(3):"?";
+      const cB = rowB&&rowB.conf!==undefined?rowB.conf.toFixed(3):null;
+      html += `<tr><td>${esc(rowA.scenario)}</td><td>${esc(rowA.turn)}</td>
+        <td colspan="${models.length===1?3:6}" style="color:var(--color-warn)">below scope gate (conf ${cB?`A: ${cA} / B: ${cB}`:cA})</td></tr>`;
+    } else {
+      html += `<tr>
+        <td>${esc(rowA.scenario)}</td><td>${esc(rowA.turn)}</td>
+        ${cell(rowA,"citation_ok",v=>v?"✓":"✗")}
+        ${cell(rowA,"coverage",v=>(v*100).toFixed(0)+"%")}
+        ${cell(rowA,"alignment",v=>v.toFixed(2))}
+        ${rowB?cell(rowB,"citation_ok",v=>v?"✓":"✗")+cell(rowB,"coverage",v=>(v*100).toFixed(0)+"%")+cell(rowB,"alignment",v=>v.toFixed(2)):""}
+      </tr>`;
+    }
+  }
+  html += `</tbody></table>
+  <p style="margin-top:12px;font-size:12px;color:var(--color-dim)">Topic alignment is the cosine similarity between the embedded answer and the first passage of the expected document (0–1). Citation OK requires at least one valid [n] reference with no out-of-range indices.</p>`;
+  genout.innerHTML = html;
+}
+
+function refreshCost(){
+  const el = $("#costline");
+  if(el) el.textContent = `${state.gens} generated answers · ${state.tokIn} in / ${state.tokOut} out tokens · $${state.costUSD.toFixed(4)} this session`;
+}
+
 /* ---- tabs & boot ---- */
-$("#tab-chat").onclick  = () => showTab("chat");
-$("#tab-trace").onclick = () => showTab("trace");
-$("#tab-eval").onclick  = () => showTab("eval");
-$("#runeval").onclick   = () => runEval();
+$("#tab-chat").onclick    = () => showTab("chat");
+$("#tab-trace").onclick   = () => showTab("trace");
+$("#tab-eval").onclick    = () => showTab("eval");
+$("#runeval").onclick     = () => runEval();
+$("#rungeneval").onclick  = () => runGenEval();
+["modelA","modelB"].forEach(id => { const el = $("#"+id); if(el) el.oninput = updateGenCostEst; });
 
 const submitBtn = $("#submit-btn");
 if(submitBtn) submitBtn.onclick = () => ask($("#q").value);
 const qInput = $("#q");
 if(qInput) qInput.onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); ask(qInput.value); } };
 
+function setBootMsg(msg){ const el = $("#boot-msg"); if(el) el.textContent = msg; }
+
+function dismissOverlay(){
+  const ov = $("#boot-overlay");
+  if(!ov) return;
+  ov.classList.add("fade-out");
+  setTimeout(() => { if(ov.parentNode) ov.parentNode.removeChild(ov); }, 550);
+}
+
 async function boot(){
   $("#pname").innerHTML = PROFILE.name;
   $("#ptag").innerHTML = PROFILE.tagline;
   const fm = $("#fmail"); if(fm){ fm.href = "mailto:" + PROFILE.email; fm.textContent = PROFILE.email; }
+
+  // disable input during boot
+  const qEl = $("#q"), sbEl = $("#submit-btn");
+  if(qEl){ qEl.disabled = true; qEl.placeholder = "Loading embedding model…"; }
+  if(sbEl) sbEl.disabled = true;
 
   // hide trace & eval panels initially
   $("#pane-trace").style.display = "none";
@@ -537,9 +712,11 @@ async function boot(){
   renderSuggest(null);
 
   try{
+    setBootMsg("Loading embedding model…");
     setStatus("loading embedding model…", "warn");
     const t0 = performance.now();
-    state.embedder = await loadEmbedder(setStatus);
+    state.embedder = await loadEmbedder(txt => { setBootMsg(txt); setStatus(txt, "warn"); });
+    setBootMsg("Building vector index…");
     setStatus("building vector index…", "warn");
     state.vecs = await batchEmbed(state.passages.map(p => p.dense));
     state.mode = "hybrid";
@@ -553,8 +730,14 @@ async function boot(){
     state.mode = "lexical";
     setStatus("embedding model unavailable — degraded to BM25 lexical retrieval", "warn");
   }
+
+  // re-enable input and dismiss overlay
+  if(qEl){ qEl.disabled = false; qEl.placeholder = "Ask about his work, his stack, work authorization, what he wants next…"; }
+  if(sbEl) sbEl.disabled = false;
+  dismissOverlay();
   state.ready = true;
   updateSessionSidebar();
+  updateGenCostEst();
 }
 
 window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask,

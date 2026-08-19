@@ -91,11 +91,36 @@ body{background:var(--color-bg);color:var(--color-text);font-family:var(--font-b
 #pane-trace,#pane-eval{display:none}
 #pane-trace.active,#pane-eval.active{display:block}
 
+/* --- details toggle --- */
+details summary::-webkit-details-marker{display:none}
+details[open] summary span:first-child{transform:rotate(90deg);display:inline-block}
+
+/* --- boot overlay --- */
+#boot-overlay{position:fixed;inset:0;background:var(--color-bg);z-index:999;display:flex;align-items:center;justify-content:center;transition:opacity .5s ease}
+#boot-overlay.fade-out{opacity:0;pointer-events:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.boot-spinner{width:32px;height:32px;border:2px solid var(--color-divider);border-top-color:var(--color-accent);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+@keyframes pulse-text{0%,100%{opacity:.5}50%{opacity:1}}
+.boot-pulse{animation:pulse-text 1.4s ease-in-out infinite}
+
 /* --- small utility --- */
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 </style>
 </head>
 <body>
+
+<!-- boot overlay — visible until embedder is ready -->
+<div id="boot-overlay">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:20px;max-width:320px;text-align:center;padding:40px">
+    <div class="boot-spinner"></div>
+    <div>
+      <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent);margin-bottom:10px">ask-elroy</div>
+      <div id="boot-msg" class="boot-pulse" style="font-size:14px;color:var(--color-dim)">Loading embedding model…</div>
+    </div>
+    <div style="font-size:11px;color:color-mix(in srgb,var(--color-dim) 60%,transparent);line-height:1.6;max-width:260px">Retrieval runs in your browser — model weights load once, then you're offline-capable.</div>
+  </div>
+</div>
+
 <div style="min-height:100vh">
 <div class="container" style="padding-top:40px">
 
@@ -107,7 +132,7 @@ body{background:var(--color-bg);color:var(--color-text);font-family:var(--font-b
       <div id="ptag" style="font-size:17px;color:color-mix(in srgb,var(--color-text) 68%,transparent)"></div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:12px">
-      <img src="profile.jpeg" alt="Elroy Galbraith" style="width:80px;height:80px;object-fit:cover;object-position:center top;border:1px solid var(--color-divider);display:block">
+      <img src="profile.jpeg" alt="Elroy Galbraith" style="width:120px;height:120px;object-fit:cover;object-position:center top;border:1px solid var(--color-divider);display:block">
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:340px">
         <span class="tag tag-outline">no login</span>
         <span class="tag tag-neutral">retrieval in your browser</span>
@@ -309,6 +334,35 @@ body{background:var(--color-bg);color:var(--color-text);font-family:var(--font-b
         <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Two gates exist in the real build: <span class="mono">scopeThreshold</span> for hybrid, <span class="mono">lexThreshold</span> for the BM25-only fallback.</p>
       </div>
     </div>
+
+    <!-- generation quality -->
+    <div style="margin-top:40px;padding-top:32px;border-top:1px solid var(--color-divider)">
+      <h4 style="margin:0 0 4px;font-size:15px;font-weight:700">Generation quality — A/B model comparison</h4>
+      <p style="margin:0 0 16px;font-size:13px;color:var(--color-dim);max-width:64ch">Runs scripted multi-turn conversations through the live generator. Scores each answer on citation faithfulness and topic alignment. Leave Model B blank to skip A/B.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+        <label style="flex:1 1 240px;font-size:12px;color:var(--color-dim)">Model A
+          <input class="input" type="text" id="modelA" style="margin-top:5px;font-size:13px" value="nvidia/nemotron-super-49b-v1:free">
+        </label>
+        <label style="flex:1 1 240px;font-size:12px;color:var(--color-dim)">Model B <span style="opacity:.6">(optional)</span>
+          <input class="input" type="text" id="modelB" style="margin-top:5px;font-size:13px" placeholder="e.g. anthropic/claude-haiku-4-5">
+        </label>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
+        <button class="btn btn-primary blueprint" style="padding:9px 20px;font-size:14px" id="rungeneval">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          Run generation quality eval
+        </button>
+        <span class="mono" id="genestcost" style="font-size:12px;color:var(--color-dim)"></span>
+      </div>
+      <div id="genout" style="font-size:13px;color:var(--color-dim)">Not run yet.</div>
+    </div>
+
+    <!-- session cost -->
+    <div style="margin-top:32px;padding-top:20px;border-top:1px solid var(--color-divider)">
+      <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-dim);margin-bottom:6px">Session cost</div>
+      <div class="mono" id="costline" style="font-size:13px;color:var(--color-dim)">no generated answers yet</div>
+    </div>
+
   </div>
 
 </div><!-- /container -->
