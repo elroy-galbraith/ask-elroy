@@ -591,7 +591,8 @@ const state = {
   bm25: null,
   backend: null,
   gens: 0, tokIn: 0, tokOut: 0, costUSD: 0,
-  qcache: new Map()
+  qcache: new Map(),
+  sessionId: crypto.randomUUID()
 };
 
 /* ---------------- text utils ---------------- */
@@ -741,7 +742,8 @@ const SYS_NOTE = "grounded generation, first person, citations required";
 
 async function generate(question, hits, onToken, history, model){
   const passages = hits.map((h,i) => ({ n: i+1, title: h.p.title, text: h.p.text }));
-  const body = { question, passages, history: history || [] };
+  const body = { question, passages, history: history || [],
+                 session_id: state.sessionId, visitor_name: null, visitor_co: null };
   if(model) body.model = model;
   const res = await fetch(CONFIG.generatorUrl, {
     method: "POST",
@@ -929,6 +931,13 @@ async function ask(text){
       holder.innerHTML =
         `<p>That is outside what I hold about Elroy, so I will not guess at it — this agent only answers from a fixed corpus he wrote.</p>
          <p>Email him and he will answer it himself: <a href="mailto:${PROFILE.email}">${PROFILE.email}</a></p>` + traceHTML(t);
+      if(CONFIG.generatorUrl){
+        fetch(CONFIG.generatorUrl + "/log", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ question: q, outcome: "refused", session_id: state.sessionId })
+        }).catch(() => {});
+      }
       renderSuggest(null, "Things I can answer");
       busy = false; return;
     }
@@ -970,6 +979,13 @@ async function ask(text){
     renderSuggest(rel.length ? rel : null, rel.length ? "Related" : "Suggested questions");
   } catch(err){
     holder.innerHTML = `<p class="flag">The generator failed (${esc(err.message)}). Falling back is safer than faking it — ask again and you will get the retrieved source passage instead.</p>`;
+    if(CONFIG.generatorUrl){
+      fetch(CONFIG.generatorUrl + "/log", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ question: q, outcome: "error", session_id: state.sessionId })
+      }).catch(() => {});
+    }
     CONFIG.generatorUrl = "";
   }
   busy = false;
