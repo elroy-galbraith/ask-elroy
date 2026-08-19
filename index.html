@@ -105,6 +105,22 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
 
 /* --- small utility --- */
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* --- mobile --- */
+@media(max-width:640px){
+  .container{padding:0 16px}
+  .tabbtn{margin-right:14px;font-size:15px}
+  #header-grid{grid-template-columns:1fr !important;gap:12px !important}
+  #header-grid>div:last-child{flex-direction:row !important;align-items:center !important;gap:16px !important;justify-content:flex-start !important}
+  #pname{font-size:32px !important}
+  #pane-chat{grid-template-columns:1fr !important}
+  #pane-chat>aside{position:static !important}
+  #trace-grid{grid-template-columns:1fr !important}
+  #eval-cards{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
+  #eval-retrieval-grid{grid-template-columns:1fr !important}
+  #input-tray{padding:20px 16px 14px !important}
+  .table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+}
 </style>
 </head>
 <body>
@@ -125,7 +141,7 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
 <div class="container" style="padding-top:40px">
 
   <!-- header -->
-  <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end;padding-bottom:20px">
+  <div id="header-grid" style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end;padding-bottom:20px">
     <div>
       <div class="eyebrow">ask-elroy — a grounded RAG agent over a corpus he wrote</div>
       <h1 id="pname" style="font-size:54px;margin:0 0 4px;letter-spacing:-.02em;font-weight:700"></h1>
@@ -213,7 +229,7 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
 
   <!-- ===== TRACE PANEL ===== -->
   <div id="pane-trace" style="padding-bottom:80px">
-    <div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:38px;align-items:start">
+    <div id="trace-grid" style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:38px;align-items:start">
       <div style="min-width:0">
         <h3 style="margin:0 0 4px;font-size:20px">Retrieval trace</h3>
         <p style="font-size:14px;color:var(--color-dim);max-width:66ch">BM25 and dense cosine score the corpus independently, then fuse by reciprocal rank. Both signals are kept apart here so you can see which one carried the result — dense alone misses acronyms, lexical alone misses paraphrase.</p>
@@ -312,7 +328,7 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:38px;align-items:start">
+      <div id="eval-retrieval-grid" style="display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:38px;align-items:start">
         <div style="min-width:0">
           <h4 style="margin:0 0 4px;font-size:15px;font-weight:700">Retrieval suite — paraphrased recruiter questions</h4>
           <p style="margin:0 0 14px;font-size:13px;color:var(--color-dim);max-width:64ch">Written the way a recruiter types them, not the way the canonical questions are worded. The expected document must surface in top-<span id="eval-topk">5</span>.</p>
