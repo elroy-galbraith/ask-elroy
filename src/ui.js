@@ -300,7 +300,6 @@ async function submitFit(jdText, card){
 
   if(CONFIG.generatorUrl){
     setStreamingCaret(msgEl, true);
-    const g0 = performance.now();
     let acc = "";
     const fakeHits = state.passages.map(p => ({ p }));
     try{
@@ -322,8 +321,8 @@ async function submitFit(jdText, card){
         msgEl.querySelector(".msg-body").appendChild(flag);
       }
 
+      state.gens++;
       if(out.usage){
-        state.gens++;
         state.tokIn += out.usage.input_tokens;
         state.tokOut += out.usage.output_tokens;
         state.costUSD += (out.usage.input_tokens/1e6)*CONFIG.price.in + (out.usage.output_tokens/1e6)*CONFIG.price.out;

@@ -264,7 +264,7 @@ async function generateFit(jdText, onToken, visitorName, visitorCo){
   if(!res.ok) throw new Error("fit generator returned " + res.status);
 
   const reader = res.body.getReader(), dec = new TextDecoder();
-  let buf = "", text = "", usage = { input_tokens: 0, output_tokens: 0 };
+  let buf = "", text = "", usage = null;
   let inThink = false, thinkBuf = "";
   for(;;){
     const { done, value } = await reader.read();
@@ -304,8 +304,7 @@ async function generateFit(jdText, onToken, visitorName, visitorCo){
         }
       }
       if(ev.usage){
-        usage.input_tokens = ev.usage.prompt_tokens || 0;
-        usage.output_tokens = ev.usage.completion_tokens || 0;
+        usage = { input_tokens: ev.usage.prompt_tokens || 0, output_tokens: ev.usage.completion_tokens || 0 };
       }
     }
   }
