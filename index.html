@@ -817,7 +817,14 @@ async function ask(text){
   const holder = bubble('<span class="think">retrieving…</span>', false);
 
   try{
-    const r = await retrieve(q);
+    // Short follow-ups ("tell me more", "elaborate") have no retrieval signal on their own.
+    // Prepend the previous user question so the scope gate and retrieval see enough context.
+    let retrievalQ = q;
+    if(history.length > 0 && q.split(/\s+/).length <= 5){
+      const prev = [...history].reverse().find(m => m.role === "user");
+      if(prev) retrievalQ = prev.content + " " + q;
+    }
+    const r = await retrieve(retrievalQ);
     const t = { hits:r.hits, conf:r.conf, msEmbed:r.msEmbed, msRetrieve:r.msTotal - r.msEmbed,
                 msTotal:r.msTotal, decision:"answer" };
 
