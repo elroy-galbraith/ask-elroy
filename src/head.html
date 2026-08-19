@@ -123,6 +123,20 @@ footer a{color:var(--dim)}
     <p>Building the system is the common skill. Building the instrument that says whether it works is the rarer one, so it ships in the same page. Press the button: the suite runs live, in this browser, against the index that just answered your questions. Nothing below is a hardcoded number.</p>
     <p><button class="go" id="runeval">Run the evaluation suite</button></p>
     <div id="evalout" class="small"><p>Not run yet.</p></div>
+
+    <h3>Generation quality</h3>
+    <p class="small">Runs scripted multi-turn conversations through the live generator. Scores each answer on citation faithfulness and topic alignment (embedding cosine to the expected passage). Uses real model calls — cost is shown before running. Leave Model B blank to skip A/B.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin:10px 0 14px">
+      <label class="small" style="flex:1 1 200px">Model A<br>
+        <input type="text" id="modelA" style="width:100%;margin-top:4px;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 10px;font:inherit;font-size:.83rem" value="nvidia/nemotron-3-super-120b-a12b:free">
+      </label>
+      <label class="small" style="flex:1 1 200px">Model B (optional)<br>
+        <input type="text" id="modelB" style="width:100%;margin-top:4px;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 10px;font:inherit;font-size:.83rem" placeholder="e.g. anthropic/claude-haiku-4-5">
+      </label>
+    </div>
+    <p><button class="go" id="rungeneval">Run generation quality eval</button> <span class="small" id="genestcost" style="color:var(--dim)"></span></p>
+    <div id="genout" class="small"><p>Not run yet.</p></div>
+
     <h3>Session cost</h3>
     <p class="small" id="costline">no generated answers yet</p>
   </section>

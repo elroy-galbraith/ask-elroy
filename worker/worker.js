@@ -48,6 +48,7 @@ export default {
 
     const question = String(body.question || "").slice(0, MAX_Q).trim();
     const passages = Array.isArray(body.passages) ? body.passages.slice(0, MAX_PASSAGES) : [];
+    const model = String(body.model || env.MODEL || MODEL_DEFAULT).slice(0, 100);
     if (!question) return json({ error: "question required" }, 400);
     if (!passages.length) return json({ error: "passages required" }, 400);
 
@@ -61,7 +62,7 @@ export default {
       .join("\n\n");
 
     const payload = {
-      model: env.MODEL || MODEL_DEFAULT,
+      model,
       max_tokens: MAX_TOKENS,
       reasoning: { exclude: true },
       stream: true,
