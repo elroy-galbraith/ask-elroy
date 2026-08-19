@@ -15,10 +15,56 @@ function bubble(html, mine){
 }
 function setStatus(t, cls){ statusEl.innerHTML = t; statusEl.className = "status " + (cls||""); }
 
+/* ---- visitor identification ---- */
+let visitor = null;
+let visitorDismissed = false;
+
+function renderVisitorCard(){
+  const card = document.createElement("div");
+  card.className = "visitor-card";
+  card.setAttribute("role", "button");
+  card.setAttribute("tabindex", "0");
+  function openForm(){ showVisitorForm(card); }
+  card.onclick = openForm;
+  card.onkeydown = e => { if(e.key === "Enter" || e.key === " "){ e.preventDefault(); openForm(); } };
+  card.innerHTML = `<span class="visitor-icon">👋</span><span><span class="visitor-prompt">Before you start — who are you?</span> <span class="visitor-opt">(optional — skip and ask anything)</span></span>`;
+  return card;
+}
+
+function showVisitorForm(card){
+  card.onclick = null; card.onkeydown = null;
+  card.className = "visitor-card open";
+  card.innerHTML = `
+    <form id="vf" autocomplete="off">
+      <div class="vf-fields">
+        <input type="text" id="vf-name" placeholder="Name" autocomplete="name">
+        <input type="text" id="vf-co" placeholder="Company" autocomplete="organization">
+        <input type="text" id="vf-role" placeholder="Role">
+      </div>
+      <div class="vf-actions">
+        <button type="submit" class="chip">Done</button>
+        <button type="button" class="chip vf-skip">Skip</button>
+      </div>
+    </form>`;
+  card.querySelector("#vf").onsubmit = e => {
+    e.preventDefault();
+    const name = card.querySelector("#vf-name").value.trim();
+    const co   = card.querySelector("#vf-co").value.trim();
+    const role = card.querySelector("#vf-role").value.trim();
+    visitor = { name, company: co, role };
+    visitorDismissed = true;
+    renderSuggest(null);
+    if(name) bubble(`<p>Thanks, ${esc(name)}! What would you like to know?</p>`, false);
+  };
+  card.querySelector(".vf-skip").onclick = () => { visitorDismissed = true; renderSuggest(null); };
+  setTimeout(() => card.querySelector("#vf-name").focus(), 0);
+}
+
 /* ---- suggestion chips ---- */
 let activeCat = CATS[0];
 function renderSuggest(list, heading){
   sugEl.innerHTML = "";
+  if(!visitorDismissed) sugEl.appendChild(renderVisitorCard());
   const h = document.createElement("p");
   h.className = "qhead"; h.innerHTML = heading || "Suggested questions";
   sugEl.appendChild(h);
@@ -85,6 +131,7 @@ let busy = false;
 async function ask(text){
   const q = String(text).trim();
   if(!q || busy) return;
+  visitorDismissed = true;
   busy = true;
   bubble(esc(q), true);
   $("#q").value = "";
@@ -111,7 +158,8 @@ async function ask(text){
         fetch(CONFIG.generatorUrl + "/log", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ question: q, outcome: "refused", session_id: state.sessionId })
+          body: JSON.stringify({ question: q, outcome: "refused", session_id: state.sessionId,
+            ...(visitor && { visitor_name: visitor.name, visitor_co: visitor.company }) })
         }).catch(() => {});
       }
       renderSuggest(null, "Things I can answer");
@@ -159,7 +207,8 @@ async function ask(text){
       fetch(CONFIG.generatorUrl + "/log", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question: q, outcome: "error", session_id: state.sessionId })
+        body: JSON.stringify({ question: q, outcome: "error", session_id: state.sessionId,
+          ...(visitor && { visitor_name: visitor.name, visitor_co: visitor.company }) })
       }).catch(() => {});
     }
     CONFIG.generatorUrl = "";
@@ -481,8 +530,8 @@ async function boot(){
   state.bm25 = buildBM25(state.passages);
   $("#idxsize").textContent = state.passages.length;
 
-  bubble(`<p>Hello. I am a retrieval-augmented agent that answers questions about Elroy Galbraith, built by him as a working sample rather than a description of one.</p>
-          <p>Every answer is grounded in a fixed corpus he wrote, with the retrieved passages and the full trace — scores, latency, tokens, cost — attached to each response. Ask me something he has not written about and I will refuse rather than improvise.</p>`, false);
+  bubble(`<p>Hi there! I'm a conversational assistant built by Elroy to help you get to know him — his experience, projects, skills, and what he's looking for next.</p>
+          <p>Ask me anything. Every answer comes straight from what Elroy wrote about himself, and I'll show you exactly where each answer came from. If I don't have it, I'll tell you that too.</p>`, false);
   renderSuggest(null);
 
   try{

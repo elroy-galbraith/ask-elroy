@@ -68,6 +68,15 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85em;bac
 footer{color:var(--dim);font-size:.77rem;padding:0 0 26px;border-top:1px solid var(--line);margin-top:8px;padding-top:12px}
 footer a{color:var(--dim)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.visitor-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:0 0 10px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s}
+.visitor-card:hover:not(.open){background:var(--soft)}
+.visitor-icon{font-size:1.2rem;flex-shrink:0}
+.visitor-prompt{font-size:.88rem}
+.visitor-opt{font-size:.8rem;color:var(--dim)}
+.visitor-card.open{cursor:default;flex-direction:column;align-items:stretch}
+.vf-fields{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px}
+.vf-fields input[type=text]{flex:1 1 120px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 10px;font:inherit;font-size:.83rem;min-width:0}
+.vf-actions{display:flex;gap:7px}
 </style>
 </head>
 <body>
