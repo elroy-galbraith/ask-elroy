@@ -15,7 +15,7 @@
  */
 
 const MODEL_DEFAULT = "nvidia/nemotron-3-super-120b-a12b:free";
-const MAX_TOKENS = 700;
+const MAX_TOKENS = 3000;  // reasoning models consume tokens before the visible answer starts
 const MAX_Q = 500;
 const MAX_PASSAGES = 8;
 
@@ -63,6 +63,7 @@ export default {
     const payload = {
       model: env.MODEL || MODEL_DEFAULT,
       max_tokens: MAX_TOKENS,
+      reasoning: { exclude: true },
       stream: true,
       stream_options: { include_usage: true },
       messages: [
