@@ -170,10 +170,26 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
 
   <!-- tabs -->
   <div style="display:flex;border-bottom:1px solid var(--color-divider);margin-bottom:28px">
-    <button class="tabbtn" id="tab-chat" aria-current="true">Chat</button>
+    <button class="tabbtn" id="tab-fit" aria-current="false">Fit check</button>
+    <button class="tabbtn" id="tab-chat" aria-current="false">Chat</button>
     <button class="tabbtn" id="tab-trace" aria-current="false">Trace</button>
     <button class="tabbtn" id="tab-eval" aria-current="false">Eval</button>
-    <span style="margin-left:auto;align-self:center;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb,var(--color-text) 45%,transparent)" id="tab-hint">grounded answers only</span>
+    <span style="margin-left:auto;align-self:center;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb,var(--color-text) 45%,transparent)" id="tab-hint"></span>
+  </div>
+
+  <!-- ===== FIT PANEL ===== -->
+  <div id="pane-fit" style="display:none;padding-top:48px;padding-bottom:80px">
+    <div style="max-width:640px">
+      <h2 style="font-size:22px;font-weight:700;letter-spacing:-.01em;margin:0 0 10px">Is Elroy a good fit for your role?</h2>
+      <p style="font-size:15px;line-height:1.6;color:var(--color-dim);margin:0 0 24px;max-width:56ch;text-wrap:pretty">Paste the job description below. I'll assess the match and switch to chat — where you can dig into specifics.</p>
+      <textarea id="fit-jd" rows="10" placeholder="Paste the job description here…" class="input" style="display:block;resize:vertical;min-height:180px;font-size:14px;line-height:1.55"></textarea>
+      <div style="margin-top:12px">
+        <button class="btn btn-primary blueprint" id="fit-btn" style="padding:11px 28px;font-size:15px">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          Assess fit →
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- ===== CHAT PANEL ===== -->

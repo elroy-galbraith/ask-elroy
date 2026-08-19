@@ -6,14 +6,14 @@ const $ = s => document.querySelector(s);
 
 /* ---- tabs ---- */
 function showTab(name){
-  ["chat","trace","eval"].forEach(t => {
+  ["fit","chat","trace","eval"].forEach(t => {
     const btn = $("#tab-"+t);
     if(btn) btn.setAttribute("aria-current", t === name ? "true" : "false");
     const panel = $("#pane-"+t);
     if(panel) panel.style.display = t === name ? (t === "chat" ? "grid" : "block") : "none";
   });
   $("#input-tray").style.display = name === "chat" ? "" : "none";
-  const hints = {chat:"grounded answers only", trace:"why these passages", eval:"runs live in this browser"};
+  const hints = {fit:"paste a job description to check the fit", chat:"grounded answers only", trace:"why these passages", eval:"runs live in this browser"};
   $("#tab-hint").textContent = hints[name] || "";
 }
 
@@ -218,7 +218,6 @@ function appendRefusal(meta){
 /* ---- suggestion chips ---- */
 let activeCat = CATS[0];
 let visitorDismissed = false;
-let fitDismissed = false;
 let visitor = null;
 const sugEl = $("#suggest");
 
@@ -261,40 +260,12 @@ function showVisitorForm(card){
   setTimeout(() => card.querySelector("#vf-name").focus(), 0);
 }
 
-function renderFitCard(){
-  const card = document.createElement("div");
-  card.id = "fit-card";
-  card.style.cssText = "background:var(--color-panel);border:1px solid var(--color-divider);padding:12px 16px;margin-bottom:14px;cursor:pointer;display:flex;align-items:center;gap:10px";
-  card.innerHTML = `<span style="font-size:1.1rem;flex-shrink:0">💼</span><span style="font-size:.88rem">Checking a role? Paste the job description and I'll assess the fit.</span>`;
-  card.onclick = () => showFitForm(card);
-  return card;
-}
-
-function showFitForm(card){
-  card.onclick = null;
-  card.style.flexDirection = "column";
-  card.style.alignItems = "stretch";
-  card.style.cursor = "default";
-  card.innerHTML = `
-    <textarea id="jd-input" placeholder="Paste the job description here…"
-      style="width:100%;min-height:120px;background:var(--color-bg);border:1px solid var(--color-divider);
-             color:var(--color-text);border-radius:0;padding:10px 12px;font-family:var(--font-body);
-             font-size:.85rem;line-height:1.5;resize:vertical;outline:none;box-sizing:border-box"></textarea>
-    <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
-      <button class="chip" id="fit-submit" style="font-weight:600">Assess fit</button>
-      <button class="btn-ghost" id="fit-cancel">Cancel</button>
-    </div>`;
-  card.querySelector("#fit-cancel").onclick = () => { fitDismissed = false; renderSuggest(null); };
-  card.querySelector("#fit-submit").onclick = () => submitFit(card.querySelector("#jd-input").value, card);
-  setTimeout(() => card.querySelector("#jd-input").focus(), 0);
-}
-
-async function submitFit(jdText, card){
+async function submitFit(jdText){
   const text = jdText.trim();
   if(!text || busy) return;
-  fitDismissed = true;
   busy = true;
-  renderSuggest(null);
+  showTab("chat");
+  visitorDismissed = true;
   appendUserMsg("How well does this role match Elroy's background?");
   const msgEl = appendBotMsg("Fit assessment", "assessing…");
 
@@ -347,7 +318,6 @@ async function submitFit(jdText, card){
 function renderSuggest(list, heading){
   sugEl.innerHTML = "";
   if(!visitorDismissed) sugEl.appendChild(renderVisitorCard());
-  if(!fitDismissed && CONFIG.generatorUrl) sugEl.appendChild(renderFitCard());
 
   const h = document.createElement("div");
   h.style.cssText = "font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim);margin-bottom:11px";
@@ -763,9 +733,15 @@ function refreshCost(){
 }
 
 /* ---- tabs & boot ---- */
+$("#tab-fit").onclick     = () => showTab("fit");
 $("#tab-chat").onclick    = () => showTab("chat");
 $("#tab-trace").onclick   = () => showTab("trace");
 $("#tab-eval").onclick    = () => showTab("eval");
+
+const fitBtn = $("#fit-btn");
+if(fitBtn) fitBtn.onclick = () => submitFit($("#fit-jd").value);
+const fitJd = $("#fit-jd");
+if(fitJd) fitJd.onkeydown = e => { if(e.key === "Enter" && (e.ctrlKey || e.metaKey)){ e.preventDefault(); submitFit(fitJd.value); } };
 $("#runeval").onclick     = () => runEval();
 $("#rungeneval").onclick  = () => runGenEval();
 ["modelA","modelB"].forEach(id => { const el = $("#"+id); if(el) el.oninput = updateGenCostEst; });
@@ -794,9 +770,7 @@ async function boot(){
   if(qEl){ qEl.disabled = true; qEl.placeholder = "Loading embedding model…"; }
   if(sbEl) sbEl.disabled = true;
 
-  // hide trace & eval panels initially
-  $("#pane-trace").style.display = "none";
-  $("#pane-eval").style.display = "none";
+  showTab("fit");
 
   state.passages = buildPassages();
   state.bm25 = buildBM25(state.passages);
