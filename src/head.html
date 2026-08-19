@@ -259,84 +259,94 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
 
   <!-- ===== EVAL PANEL ===== -->
   <div id="pane-eval" style="padding-bottom:80px">
-    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:24px">
-      <div>
-        <h3 style="margin:0 0 4px;font-size:20px">Does this agent actually work?</h3>
-        <p style="margin:0;font-size:14.5px;color:var(--color-dim);max-width:66ch;text-wrap:pretty">Building the system is the common skill; building the instrument that says whether it works is the rarer one, so it ships in the same page. The suite runs live, in this browser, against the index that just answered your questions. Nothing below is a hardcoded number.</p>
-      </div>
-      <button class="btn btn-primary blueprint" style="padding:10px 22px;font-size:15px;white-space:nowrap" id="runeval">
-        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-        Run the evaluation suite
-      </button>
+    <div style="margin-bottom:20px">
+      <h3 style="margin:0 0 4px;font-size:20px">Does this agent actually work?</h3>
+      <p style="margin:0;font-size:14.5px;color:var(--color-dim);max-width:66ch;text-wrap:pretty">Building the system is the common skill; building the instrument that says whether it works is the rarer one, so it ships in the same page. The suite runs live, in this browser, against the index that just answered your questions. Nothing below is a hardcoded number.</p>
     </div>
 
-    <!-- stat cards -->
-    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:30px" id="eval-cards">
-      <div class="blueprint" style="padding:14px 16px">
-        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)" id="ec-r1-label">Retrieval hit@5</div>
-        <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px" id="ec-r1-val">—</div>
-        <div style="font-size:11.5px;color:var(--color-dim)" id="ec-r1-note">not run yet</div>
+    <!-- eval sub-tab bar -->
+    <div style="display:flex;border-bottom:1px solid var(--color-divider);margin-bottom:28px">
+      <button class="tabbtn" id="evaltab-retrieval" aria-current="true" onclick="showEvalTab('retrieval')">Retrieval suite</button>
+      <button class="tabbtn" id="evaltab-genqual" aria-current="false" onclick="showEvalTab('genqual')">Generation quality</button>
+    </div>
+
+    <!-- ---- Retrieval sub-panel ---- -->
+    <div id="eval-sub-retrieval">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:24px">
+        <button class="btn btn-primary blueprint" style="padding:10px 22px;font-size:15px;white-space:nowrap" id="runeval">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          Run the evaluation suite
+        </button>
       </div>
-      <div class="blueprint" style="padding:14px 16px">
-        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)">MRR</div>
-        <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px" id="ec-mrr-val">—</div>
-        <div style="font-size:11.5px;color:var(--color-dim)">mean reciprocal rank</div>
+
+      <!-- stat cards -->
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:30px" id="eval-cards">
+        <div class="blueprint" style="padding:14px 16px">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)" id="ec-r1-label">Retrieval hit@5</div>
+          <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px" id="ec-r1-val">—</div>
+          <div style="font-size:11.5px;color:var(--color-dim)" id="ec-r1-note">not run yet</div>
+        </div>
+        <div class="blueprint" style="padding:14px 16px">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)">MRR</div>
+          <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px" id="ec-mrr-val">—</div>
+          <div style="font-size:11.5px;color:var(--color-dim)">mean reciprocal rank</div>
+        </div>
+        <div class="blueprint" style="padding:14px 16px">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)">Refusal</div>
+          <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px" id="ec-ref-val">—</div>
+          <div style="font-size:11.5px;color:var(--color-dim)" id="ec-ref-note">out-of-scope probes</div>
+        </div>
+        <div class="blueprint" style="padding:14px 16px">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)">Suite cost</div>
+          <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px">$0.00</div>
+          <div style="font-size:11.5px;color:var(--color-dim)">retrieval only — no model calls</div>
+        </div>
       </div>
-      <div class="blueprint" style="padding:14px 16px">
-        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)">Refusal</div>
-        <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px" id="ec-ref-val">—</div>
-        <div style="font-size:11.5px;color:var(--color-dim)" id="ec-ref-note">out-of-scope probes</div>
-      </div>
-      <div class="blueprint" style="padding:14px 16px">
-        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)">Suite cost</div>
-        <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px">$0.00</div>
-        <div style="font-size:11.5px;color:var(--color-dim)">retrieval only — no model calls</div>
+
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:38px;align-items:start">
+        <div style="min-width:0">
+          <h4 style="margin:0 0 4px;font-size:15px;font-weight:700">Retrieval suite — paraphrased recruiter questions</h4>
+          <p style="margin:0 0 14px;font-size:13px;color:var(--color-dim);max-width:64ch">Written the way a recruiter types them, not the way the canonical questions are worded. The expected document must surface in top-<span id="eval-topk">5</span>.</p>
+          <table class="table" id="eval-table">
+            <thead><tr>
+              <th style="width:30px">#</th><th>Query</th><th style="width:130px">Expected</th>
+              <th style="width:130px">Top hit</th><th style="width:52px">Rank</th>
+              <th style="width:56px">RR</th><th style="width:70px">Result</th>
+            </tr></thead>
+            <tbody id="eval-tbody"><tr><td colspan="7" style="color:var(--color-dim);font-size:13px">Not run yet.</td></tr></tbody>
+          </table>
+
+          <h4 style="margin:32px 0 4px;font-size:15px;font-weight:700">Refusal suite — out-of-scope probes</h4>
+          <p style="margin:0 0 14px;font-size:13px;color:var(--color-dim);max-width:64ch">General knowledge, private data, off-task requests and prompt injection. A pass means the gate fired before any model call.</p>
+          <table class="table" id="oos-table">
+            <thead><tr>
+              <th style="width:30px">#</th><th>Probe</th><th style="width:150px">Class</th>
+              <th style="width:110px">Confidence</th><th style="width:100px">Result</th>
+            </tr></thead>
+            <tbody id="oos-tbody"><tr><td colspan="5" style="color:var(--color-dim);font-size:13px">Not run yet.</td></tr></tbody>
+          </table>
+        </div>
+
+        <!-- sweep panel -->
+        <div class="blueprint" style="padding:16px;position:sticky;top:24px">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div class="section-label" style="margin-bottom:6px">Scope-gate sweep</div>
+          <p style="margin:0 0 12px;font-size:11.5px;line-height:1.5;color:var(--color-dim)">What each setting costs you: in-scope questions answered against out-of-scope probes refused. The joint optimum is marked.</p>
+          <table class="table" style="font-size:12px" id="sweep-table">
+            <thead><tr><th style="width:52px">gate</th><th>answered</th><th>refused</th><th style="width:44px">joint</th></tr></thead>
+            <tbody id="sweep-tbody"><tr><td colspan="4" style="color:var(--color-dim)">not run yet</td></tr></tbody>
+          </table>
+          <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Two gates exist in the real build: <span class="mono">scopeThreshold</span> for hybrid, <span class="mono">lexThreshold</span> for the BM25-only fallback.</p>
+        </div>
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:38px;align-items:start">
-      <div style="min-width:0">
-        <h4 style="margin:0 0 4px;font-size:15px;font-weight:700">Retrieval suite — paraphrased recruiter questions</h4>
-        <p style="margin:0 0 14px;font-size:13px;color:var(--color-dim);max-width:64ch">Written the way a recruiter types them, not the way the canonical questions are worded. The expected document must surface in top-<span id="eval-topk">5</span>.</p>
-        <table class="table" id="eval-table">
-          <thead><tr>
-            <th style="width:30px">#</th><th>Query</th><th style="width:130px">Expected</th>
-            <th style="width:130px">Top hit</th><th style="width:52px">Rank</th>
-            <th style="width:56px">RR</th><th style="width:70px">Result</th>
-          </tr></thead>
-          <tbody id="eval-tbody"><tr><td colspan="7" style="color:var(--color-dim);font-size:13px">Not run yet.</td></tr></tbody>
-        </table>
-
-        <h4 style="margin:32px 0 4px;font-size:15px;font-weight:700">Refusal suite — out-of-scope probes</h4>
-        <p style="margin:0 0 14px;font-size:13px;color:var(--color-dim);max-width:64ch">General knowledge, private data, off-task requests and prompt injection. A pass means the gate fired before any model call.</p>
-        <table class="table" id="oos-table">
-          <thead><tr>
-            <th style="width:30px">#</th><th>Probe</th><th style="width:150px">Class</th>
-            <th style="width:110px">Confidence</th><th style="width:100px">Result</th>
-          </tr></thead>
-          <tbody id="oos-tbody"><tr><td colspan="5" style="color:var(--color-dim);font-size:13px">Not run yet.</td></tr></tbody>
-        </table>
-      </div>
-
-      <!-- sweep panel -->
-      <div class="blueprint" style="padding:16px;position:sticky;top:24px">
-        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-        <div class="section-label" style="margin-bottom:6px">Scope-gate sweep</div>
-        <p style="margin:0 0 12px;font-size:11.5px;line-height:1.5;color:var(--color-dim)">What each setting costs you: in-scope questions answered against out-of-scope probes refused. The joint optimum is marked.</p>
-        <table class="table" style="font-size:12px" id="sweep-table">
-          <thead><tr><th style="width:52px">gate</th><th>answered</th><th>refused</th><th style="width:44px">joint</th></tr></thead>
-          <tbody id="sweep-tbody"><tr><td colspan="4" style="color:var(--color-dim)">not run yet</td></tr></tbody>
-        </table>
-        <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Two gates exist in the real build: <span class="mono">scopeThreshold</span> for hybrid, <span class="mono">lexThreshold</span> for the BM25-only fallback.</p>
-      </div>
-    </div>
-
-    <!-- generation quality -->
-    <div style="margin-top:40px;padding-top:32px;border-top:1px solid var(--color-divider)">
+    <!-- ---- Generation quality sub-panel ---- -->
+    <div id="eval-sub-genqual" style="display:none">
       <h4 style="margin:0 0 4px;font-size:15px;font-weight:700">Generation quality — A/B model comparison</h4>
       <p style="margin:0 0 16px;font-size:13px;color:var(--color-dim);max-width:64ch">Runs scripted multi-turn conversations through the live generator. Scores each answer on citation faithfulness and topic alignment. Leave Model B blank to skip A/B.</p>
       <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px">
@@ -355,12 +365,11 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
         <span class="mono" id="genestcost" style="font-size:12px;color:var(--color-dim)"></span>
       </div>
       <div id="genout" style="font-size:13px;color:var(--color-dim)">Not run yet.</div>
-    </div>
 
-    <!-- session cost -->
-    <div style="margin-top:32px;padding-top:20px;border-top:1px solid var(--color-divider)">
-      <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-dim);margin-bottom:6px">Session cost</div>
-      <div class="mono" id="costline" style="font-size:13px;color:var(--color-dim)">no generated answers yet</div>
+      <div style="margin-top:32px;padding-top:20px;border-top:1px solid var(--color-divider)">
+        <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-dim);margin-bottom:6px">Session cost</div>
+        <div class="mono" id="costline" style="font-size:13px;color:var(--color-dim)">no generated answers yet</div>
+      </div>
     </div>
 
   </div>

@@ -17,6 +17,17 @@ function showTab(name){
   $("#tab-hint").textContent = hints[name] || "";
 }
 
+/* ---- eval sub-tabs ---- */
+function showEvalTab(name){
+  ["retrieval","genqual"].forEach(t => {
+    const btn = $("#evaltab-"+t);
+    if(btn) btn.setAttribute("aria-current", t === name ? "true" : "false");
+    const panel = $("#eval-sub-"+t);
+    if(panel) panel.style.display = t === name ? "" : "none";
+  });
+}
+window.showEvalTab = showEvalTab;
+
 /* ---- status strip ---- */
 function setStatus(text, state){
   const dot = $("#status-indicator");
