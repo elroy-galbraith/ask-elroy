@@ -7,5 +7,6 @@ CREATE TABLE IF NOT EXISTS questions (
   ua           TEXT,
   session_id   TEXT,
   visitor_name TEXT,
-  visitor_co   TEXT
+  visitor_co   TEXT,
+  response     TEXT
 );

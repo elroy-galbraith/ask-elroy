@@ -69,7 +69,7 @@ async function handleAdmin(request, env) {
   if (!env.DB) return json({ error: "DB binding not configured" }, 503);
   try {
     const result = await env.DB.prepare(
-      "SELECT id, ts, question, outcome, country, ua, session_id, visitor_name, visitor_co FROM questions ORDER BY ts DESC LIMIT 100"
+      "SELECT id, ts, question, outcome, country, ua, session_id, visitor_name, visitor_co, response FROM questions ORDER BY ts DESC LIMIT 100"
     ).all();
     return json(result.results);
   } catch (e) {
@@ -149,9 +149,14 @@ async function handleGenerate(request, env, ctx) {
     return json({ error: "upstream " + upstream.status, detail: detail.slice(0, 400) }, 502);
   }
 
-  ctx.waitUntil(logRow(env, request, question, "answered", session_id, visitor_name, visitor_co));
+  const [clientStream, logStream] = upstream.body.tee();
 
-  return new Response(upstream.body, {
+  ctx.waitUntil((async () => {
+    const response = await collectResponse(logStream);
+    await logRow(env, request, question, "answered", session_id, visitor_name, visitor_co, response);
+  })());
+
+  return new Response(clientStream, {
     headers: {
       ...cors,
       "content-type": "text/event-stream; charset=utf-8",
@@ -160,11 +165,37 @@ async function handleGenerate(request, env, ctx) {
   });
 }
 
-async function logRow(env, request, question, outcome, session_id, visitor_name, visitor_co) {
+async function collectResponse(stream) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let full = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") continue;
+        try {
+          const delta = JSON.parse(data).choices?.[0]?.delta?.content;
+          if (delta) full += delta;
+        } catch (_) {}
+      }
+    }
+  } catch (_) {}
+  return full.slice(0, 5000) || null;
+}
+
+async function logRow(env, request, question, outcome, session_id, visitor_name, visitor_co, response = null) {
   if (!env.DB) return;
   try {
     await env.DB.prepare(
-      "INSERT INTO questions (ts, question, outcome, country, ua, session_id, visitor_name, visitor_co) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO questions (ts, question, outcome, country, ua, session_id, visitor_name, visitor_co, response) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     ).bind(
       new Date().toISOString(),
       question,
@@ -173,7 +204,8 @@ async function logRow(env, request, question, outcome, session_id, visitor_name,
       (request.headers.get("user-agent") || "").slice(0, 500) || null,
       session_id,
       visitor_name,
-      visitor_co
+      visitor_co,
+      response
     ).run();
   } catch (_) { /* fire-and-forget — DB errors must never reach the client */ }
 }
