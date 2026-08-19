@@ -281,7 +281,7 @@ function renderSuggest(list, heading){
       cats.appendChild(b);
     });
     sugEl.appendChild(cats);
-    list = BANK.filter(e => e.cat === activeCat || e.cat === activeCat.replace("&amp;","&")).map(e => e.q);
+    list = BANK.filter(e => e.cat === activeCat).map(e => e.q);
   }
 
   const w = document.createElement("div");
