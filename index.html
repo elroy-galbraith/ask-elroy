@@ -918,7 +918,7 @@ async function ask(text){
     // Short follow-ups ("tell me more", "elaborate") have no retrieval signal on their own.
     // Prepend the previous user question so the scope gate and retrieval see enough context.
     let retrievalQ = q;
-    if(history.length > 0 && q.split(/\s+/).length <= 5){
+    if(history.length > 0 && toks(q).length <= 5){
       const prev = [...history].reverse().find(m => m.role === "user");
       if(prev) retrievalQ = prev.content + " " + q;
     }
