@@ -218,6 +218,7 @@ function appendRefusal(meta){
 /* ---- suggestion chips ---- */
 let activeCat = CATS[0];
 let visitorDismissed = false;
+let fitDismissed = false;
 let visitor = null;
 const sugEl = $("#suggest");
 
@@ -260,9 +261,94 @@ function showVisitorForm(card){
   setTimeout(() => card.querySelector("#vf-name").focus(), 0);
 }
 
+function renderFitCard(){
+  const card = document.createElement("div");
+  card.id = "fit-card";
+  card.style.cssText = "background:var(--color-panel);border:1px solid var(--color-divider);padding:12px 16px;margin-bottom:14px;cursor:pointer;display:flex;align-items:center;gap:10px";
+  card.innerHTML = `<span style="font-size:1.1rem;flex-shrink:0">💼</span><span style="font-size:.88rem">Checking a role? Paste the job description and I'll assess the fit.</span>`;
+  card.onclick = () => showFitForm(card);
+  return card;
+}
+
+function showFitForm(card){
+  card.onclick = null;
+  card.style.flexDirection = "column";
+  card.style.alignItems = "stretch";
+  card.style.cursor = "default";
+  card.innerHTML = `
+    <textarea id="jd-input" placeholder="Paste the job description here…"
+      style="width:100%;min-height:120px;background:var(--color-bg);border:1px solid var(--color-divider);
+             color:var(--color-text);border-radius:0;padding:10px 12px;font-family:var(--font-body);
+             font-size:.85rem;line-height:1.5;resize:vertical;outline:none;box-sizing:border-box"></textarea>
+    <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+      <button class="chip" id="fit-submit" style="font-weight:600">Assess fit</button>
+      <button class="btn-ghost" id="fit-cancel">Cancel</button>
+    </div>`;
+  card.querySelector("#fit-cancel").onclick = () => { fitDismissed = false; renderSuggest(null); };
+  card.querySelector("#fit-submit").onclick = () => submitFit(card.querySelector("#jd-input").value, card);
+  setTimeout(() => card.querySelector("#jd-input").focus(), 0);
+}
+
+async function submitFit(jdText, card){
+  const text = jdText.trim();
+  if(!text || busy) return;
+  fitDismissed = true;
+  busy = true;
+  renderSuggest(null);
+  appendUserMsg("How well does this role match Elroy's background?");
+  const msgEl = appendBotMsg("Fit assessment", "assessing…");
+
+  if(CONFIG.generatorUrl){
+    setStreamingCaret(msgEl, true);
+    const g0 = performance.now();
+    let acc = "";
+    const fakeHits = state.passages.map(p => ({ p }));
+    try{
+      const out = await generateFit(text, tok => {
+        acc += tok;
+        renderAnswerIntoMsg(msgEl, acc, fakeHits);
+        setStreamingCaret(msgEl, true);
+        msgEl.scrollIntoView({ behavior:"smooth", block:"nearest" });
+      }, visitor ? visitor.name : null, visitor ? visitor.company : null);
+
+      setStreamingCaret(msgEl, false);
+      renderAnswerIntoMsg(msgEl, out.text, fakeHits);
+
+      const ground = checkGrounding(out.text, fakeHits);
+      if(!ground.ok){
+        const flag = document.createElement("p");
+        flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
+        flag.textContent = "Groundedness flag: this assessment did not cite its sources cleanly. Treat it with suspicion.";
+        msgEl.querySelector(".msg-body").appendChild(flag);
+      }
+
+      if(out.usage){
+        state.gens++;
+        state.tokIn += out.usage.input_tokens;
+        state.tokOut += out.usage.output_tokens;
+        state.costUSD += (out.usage.input_tokens/1e6)*CONFIG.price.in + (out.usage.output_tokens/1e6)*CONFIG.price.out;
+        updateSessionSidebar();
+      }
+      const metaEl = msgEl.querySelector(".mono");
+      if(metaEl && out.usage){
+        const cost = (out.usage.input_tokens/1e6)*CONFIG.price.in + (out.usage.output_tokens/1e6)*CONFIG.price.out;
+        metaEl.textContent = state.passages.length + " passages · $" + cost.toFixed(5);
+      }
+    } catch(err){
+      setStreamingCaret(msgEl, false);
+      msgEl.querySelector(".msg-body").innerHTML = `<p style="color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px">The fit check failed (${esc(err.message)}). Try again or email <a href="mailto:${esc(PROFILE.email)}" style="color:var(--color-accent)">${esc(PROFILE.email)}</a> directly.</p>`;
+    }
+  } else {
+    setStreamingCaret(msgEl, false);
+    msgEl.querySelector(".msg-body").innerHTML = `<p style="color:var(--color-dim);font-size:.85rem">No generator configured — fit assessment requires the live worker.</p>`;
+  }
+  busy = false;
+}
+
 function renderSuggest(list, heading){
   sugEl.innerHTML = "";
   if(!visitorDismissed) sugEl.appendChild(renderVisitorCard());
+  if(!fitDismissed && CONFIG.generatorUrl) sugEl.appendChild(renderFitCard());
 
   const h = document.createElement("div");
   h.style.cssText = "font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim);margin-bottom:11px";
