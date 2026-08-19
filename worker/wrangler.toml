@@ -9,4 +9,4 @@ compatibility_date = "2026-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "ask-elroy-log"
-database_id = "REPLACE_WITH_ID_FROM_WRANGLER_D1_CREATE"
+database_id = "5a6bb83e-01f3-4c7d-9512-94b32325dc5c"
