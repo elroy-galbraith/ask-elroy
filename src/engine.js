@@ -29,7 +29,8 @@ const state = {
   bm25: null,
   backend: null,
   gens: 0, tokIn: 0, tokOut: 0, costUSD: 0,
-  qcache: new Map()
+  qcache: new Map(),
+  sessionId: crypto.randomUUID()
 };
 
 /* ---------------- text utils ---------------- */
@@ -179,7 +180,8 @@ const SYS_NOTE = "grounded generation, first person, citations required";
 
 async function generate(question, hits, onToken, history, model){
   const passages = hits.map((h,i) => ({ n: i+1, title: h.p.title, text: h.p.text }));
-  const body = { question, passages, history: history || [] };
+  const body = { question, passages, history: history || [],
+                 session_id: state.sessionId, visitor_name: null, visitor_co: null };
   if(model) body.model = model;
   const res = await fetch(CONFIG.generatorUrl, {
     method: "POST",
