@@ -107,6 +107,13 @@ async function ask(text){
       holder.innerHTML =
         `<p>That is outside what I hold about Elroy, so I will not guess at it — this agent only answers from a fixed corpus he wrote.</p>
          <p>Email him and he will answer it himself: <a href="mailto:${PROFILE.email}">${PROFILE.email}</a></p>` + traceHTML(t);
+      if(CONFIG.generatorUrl){
+        fetch(CONFIG.generatorUrl + "/log", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ question: q, outcome: "refused", session_id: state.sessionId })
+        }).catch(() => {});
+      }
       renderSuggest(null, "Things I can answer");
       busy = false; return;
     }
@@ -148,6 +155,13 @@ async function ask(text){
     renderSuggest(rel.length ? rel : null, rel.length ? "Related" : "Suggested questions");
   } catch(err){
     holder.innerHTML = `<p class="flag">The generator failed (${esc(err.message)}). Falling back is safer than faking it — ask again and you will get the retrieved source passage instead.</p>`;
+    if(CONFIG.generatorUrl){
+      fetch(CONFIG.generatorUrl + "/log", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ question: q, outcome: "error", session_id: state.sessionId })
+      }).catch(() => {});
+    }
     CONFIG.generatorUrl = "";
   }
   busy = false;
