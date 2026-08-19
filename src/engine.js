@@ -172,7 +172,7 @@ async function retrieve(query, k){
   const ranked = [...fused.entries()].sort((a,b) => b[1]-a[1]).slice(0,k)
     .map(([idx,f]) => ({ p: state.passages[idx], idx, rrf: f,
                          bm25: lex[idx], cos: dense ? dense[idx] : null }));
-  return { hits: ranked, conf, msEmbed: tEmbed, msTotal: performance.now()-t0 };
+  return { hits: ranked, conf, terms: toks(query), msEmbed: tEmbed, msTotal: performance.now()-t0 };
 }
 
 /* ---------------- 5. generation (proxied) ---------------- */

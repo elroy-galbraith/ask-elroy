@@ -6,164 +6,329 @@
 <title>Ask about Elroy Galbraith — a grounded RAG agent</title>
 <meta name="description" content="A retrieval-augmented agent that answers recruiter questions about Elroy Galbraith, with retrieved passages, a full trace, and a live evaluation suite attached.">
 <style>
-:root{--bg:#0e1116;--panel:#151a22;--panel2:#1b2029;--line:#262d38;--ink:#e8ecf2;--dim:#98a4b4;
- --accent:#5eb3ff;--soft:#16334f;--me:#22303f;--ok:#5fd39a;--warn:#e8b64c;--bad:#ff7a7a;--r:14px}
-@media (prefers-color-scheme:light){:root{--bg:#f6f7f9;--panel:#fff;--panel2:#f0f2f6;--line:#e2e6ec;
- --ink:#131820;--dim:#5b6673;--accent:#0b62c4;--soft:#e4effc;--me:#e6edf6;--ok:#12805a;--warn:#8a6100;--bad:#b3261e}}
-*{box-sizing:border-box}html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
-.wrap{max-width:860px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;padding:0 16px}
-header{padding:26px 0 0}
-h1{font-size:1.32rem;margin:0 0 3px;letter-spacing:-.01em}
-h2{font-size:1.05rem;margin:26px 0 8px}
-h3{font-size:.92rem;margin:22px 0 6px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em}
-.sub{color:var(--dim);font-size:.92rem;margin:0}
-.status{font-size:.78rem;color:var(--dim);margin:10px 0 0;padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel2)}
-.status.ok{color:var(--ok)}.status.warn{color:var(--warn)}
-.tabs{display:flex;gap:4px;margin:14px 0 0;border-bottom:1px solid var(--line)}
-.tabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--dim);font:inherit;font-size:.9rem;padding:9px 13px;cursor:pointer}
-.tabs button[aria-selected=true]{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
-main{flex:1;padding:16px 0 8px}
-.msg{display:flex;margin:0 0 14px;gap:10px}
-.msg .bubble{padding:12px 15px;border-radius:var(--r);max-width:88%;border:1px solid var(--line);background:var(--panel);animation:pop .18s ease-out}
-@keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-.msg.me{justify-content:flex-end}.msg.me .bubble{background:var(--me);border-color:transparent}
-.bubble p{margin:0 0 10px}.bubble p:last-child,.bubble ul:last-child,.bubble ol:last-child,.bubble details:last-child{margin-bottom:0}
-.bubble ul,.bubble ol{margin:0 0 10px;padding-left:20px}.bubble li{margin:0 0 6px}
-.bubble a{color:var(--accent)}
-sup.cite{color:var(--accent);cursor:help;font-weight:600}
-.flag{color:var(--bad);font-size:.85rem;border-left:3px solid var(--bad);padding-left:9px}
-.modeflag{color:var(--dim);font-size:.79rem;border-top:1px dashed var(--line);padding-top:8px}
-.think{color:var(--dim);font-style:italic}
-details.trace,details.src{margin:10px 0 0;border-top:1px dashed var(--line);padding-top:8px}
-details summary{cursor:pointer;color:var(--dim);font-size:.78rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-.tracebody{margin-top:8px;font-size:.76rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-.kv{display:flex;justify-content:space-between;gap:12px;padding:2px 0;color:var(--dim)}
-.kv b{color:var(--ink);font-weight:600}
-table.tt{width:100%;border-collapse:collapse;margin:8px 0;font-size:.75rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-table.tt th,table.tt td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top}
-table.tt th{color:var(--dim);font-weight:600}
-table.tt tr.hl{background:var(--soft)}
-.srcp{font-size:.79rem;color:var(--dim);margin:8px 0}
-.qhead{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:0 0 8px;font-weight:600}
-.chips{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 0}
-.chip{background:transparent;color:var(--accent);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font:inherit;font-size:.83rem;cursor:pointer;text-align:left;line-height:1.3}
-.chip:hover{background:var(--soft);border-color:var(--accent)}
-.chip.cat{color:var(--ink);font-weight:600}
-.chip.cat[aria-pressed=true]{background:var(--soft);border-color:var(--accent);color:var(--accent)}
-.tray{position:sticky;bottom:0;background:var(--bg);padding:10px 0 16px;border-top:1px solid var(--line)}
-form{display:flex;gap:8px}
-input[type=text]{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:12px 14px;font:inherit;min-width:0}
-input[type=text]:focus{outline:2px solid var(--accent);outline-offset:1px}
-button.send{background:var(--accent);color:#fff;border:0;border-radius:12px;padding:0 18px;font:inherit;font-weight:600;cursor:pointer}
-button.go{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:9px 16px;font:inherit;font-weight:600;cursor:pointer}
-.cards{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
-.card{flex:1 1 150px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
-.card b{display:block;font-size:1.5rem;letter-spacing:-.02em}
-.card span{font-size:.74rem;color:var(--dim)}
-.small{font-size:.83rem;color:var(--dim)}
-.pane p{margin:0 0 11px}
-.pane ul{padding-left:20px}.pane li{margin:0 0 7px}
-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85em;background:var(--panel2);padding:1px 5px;border-radius:5px}
-footer{color:var(--dim);font-size:.77rem;padding:0 0 26px;border-top:1px solid var(--line);margin-top:8px;padding-top:12px}
-footer a{color:var(--dim)}
+:root{
+  --color-bg:#0e1117;--color-panel:#151b24;--color-text:#e8ecf2;
+  --color-accent:#5b9aff;--color-accent-700:#3d7de8;--color-accent-800:#2460c4;
+  --color-accent-900:#1a3d80;--color-divider:#262d38;--color-dim:#98a4b4;
+  --color-ok:#5fd39a;--color-warn:#e8b64c;--color-bad:#ff7a7a;
+  --font-body:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --font-mono:ui-monospace,"SFMono-Regular",Menlo,monospace
+}
+@media(prefers-color-scheme:light){:root{
+  --color-bg:#f6f7fa;--color-panel:#fff;--color-text:#131820;
+  --color-accent:#0b62c4;--color-accent-700:#0952a8;--color-accent-800:#073d80;
+  --color-accent-900:#052a58;--color-divider:#dde2ea;--color-dim:#5b6673;
+  --color-ok:#12805a;--color-warn:#8a6100;--color-bad:#b3261e
+}}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{background:var(--color-bg);color:var(--color-text);font-family:var(--font-body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.container{max-width:1200px;margin:0 auto;padding:0 40px}
+
+/* --- blueprint containers --- */
+.blueprint{position:relative;border:1px solid var(--color-divider)}
+.corner{position:absolute;width:7px;height:7px;border-color:var(--color-accent);border-style:solid}
+.corner.tl{top:-1px;left:-1px;border-width:2px 0 0 2px}
+.corner.tr{top:-1px;right:-1px;border-width:2px 2px 0 0}
+.corner.bl{bottom:-1px;left:-1px;border-width:0 0 2px 2px}
+.corner.br{bottom:-1px;right:-1px;border-width:0 2px 2px 0}
+
+/* --- tabs --- */
+.tabbtn{appearance:none;background:transparent;border:0;border-bottom:2px solid transparent;
+  padding:11px 2px;margin-right:30px;cursor:pointer;
+  font-family:var(--font-body);font-weight:600;font-size:17px;letter-spacing:.02em;
+  color:color-mix(in srgb,var(--color-text) 50%,transparent)}
+.tabbtn:hover{color:var(--color-text)}
+.tabbtn[aria-current="true"]{color:var(--color-text);border-bottom-color:var(--color-accent)}
+
+/* --- chip buttons --- */
+.chip{appearance:none;cursor:pointer;font-family:var(--font-body);font-size:13px;
+  line-height:1.25;padding:6px 11px;border:1px solid var(--color-divider);border-radius:0;
+  background:transparent;color:var(--color-accent-800);color:var(--color-accent);text-align:left}
+.chip:hover{background:color-mix(in srgb,var(--color-accent) 12%,transparent);border-color:var(--color-accent)}
+.chip.cat{font-weight:600;font-size:14px;color:var(--color-text)}
+.chip[data-on="1"]{background:var(--color-accent);border-color:var(--color-accent);color:var(--color-bg)}
+
+/* --- tags --- */
+.tag{display:inline-block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  padding:3px 8px;font-weight:600}
+.tag-outline{border:1px solid var(--color-divider);color:var(--color-dim)}
+.tag-neutral{border:1px solid var(--color-divider);background:color-mix(in srgb,var(--color-text) 8%,transparent);color:var(--color-text)}
+.tag-accent{border:1px solid var(--color-accent);background:color-mix(in srgb,var(--color-accent) 15%,transparent);color:var(--color-accent)}
+.tag-ok{border:1px solid var(--color-ok);background:color-mix(in srgb,var(--color-ok) 12%,transparent);color:var(--color-ok)}
+.tag-bad{border:1px solid var(--color-bad);background:color-mix(in srgb,var(--color-bad) 12%,transparent);color:var(--color-bad)}
+
+/* --- buttons --- */
+.btn{appearance:none;cursor:pointer;font-family:var(--font-body);font-weight:600;border:0;border-radius:0}
+.btn-primary{background:var(--color-accent);color:#fff}
+.btn-primary:hover{opacity:.9}
+.btn-ghost{background:transparent;color:var(--color-dim);font-size:13px;padding:6px 0;border:0}
+.btn-ghost:hover{color:var(--color-text)}
+
+/* --- table --- */
+.table{width:100%;border-collapse:collapse}
+.table th{text-align:left;padding:6px 10px;border-bottom:1px solid var(--color-divider);
+  font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-dim);font-weight:600}
+.table td{padding:9px 10px;border-bottom:1px solid var(--color-divider);vertical-align:top}
+.table tr:last-child td{border-bottom:0}
+
+/* --- input --- */
+.input{width:100%;background:var(--color-bg);border:1px solid var(--color-divider);
+  color:var(--color-text);padding:12px 14px;font-family:var(--font-body);font-size:15px;
+  outline:none;border-radius:0}
+.input:focus{border-color:var(--color-accent)}
+
+/* --- streaming caret --- */
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.caret{display:inline-block;width:7px;height:15px;background:var(--color-accent);
+  vertical-align:-2px;animation:blink .9s steps(1) infinite}
+
+/* --- eyebrow / label text --- */
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent-700);margin-bottom:8px}
+.section-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-accent)}
+
+/* --- layout panels --- */
+#pane-trace,#pane-eval{display:none}
+#pane-trace.active,#pane-eval.active{display:block}
+
+/* --- small utility --- */
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-.visitor-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:0 0 10px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s}
-.visitor-card:hover:not(.open){background:var(--soft)}
-.visitor-icon{font-size:1.2rem;flex-shrink:0}
-.visitor-prompt{font-size:.88rem}
-.visitor-opt{font-size:.8rem;color:var(--dim)}
-.visitor-card.open{cursor:default;flex-direction:column;align-items:stretch}
-.vf-fields{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px}
-.vf-fields input[type=text]{flex:1 1 120px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 10px;font:inherit;font-size:.83rem;min-width:0}
-.vf-actions{display:flex;gap:7px}
 </style>
 </head>
 <body>
-<div class="wrap">
-<header>
-  <h1 id="pname"></h1>
-  <p class="sub" id="ptag"></p>
-  <p class="status" id="status">starting…</p>
-  <nav class="tabs" role="tablist">
-    <button id="tab-chat" role="tab" aria-selected="true">Ask</button>
-    <button id="tab-how"  role="tab" aria-selected="false">How this works</button>
-    <button id="tab-eval" role="tab" aria-selected="false">Evaluation</button>
-  </nav>
-</header>
+<div style="min-height:100vh">
+<div class="container" style="padding-top:40px">
 
-<main>
-  <section id="pane-chat" role="tabpanel">
-    <div id="log" role="log" aria-live="polite" aria-label="Conversation"></div>
-    <div id="suggest"></div>
-  </section>
-
-  <section id="pane-how" role="tabpanel" class="pane" hidden>
-    <h2>What this is</h2>
-    <p>A retrieval-augmented agent over a fixed corpus that Elroy wrote about his own work. It exists for two reasons: to answer a recruiter's questions at 11pm without him, and to be the sample rather than the description — a hiring manager can read the trace on any answer and see exactly how it was produced.</p>
-
-    <h2>Pipeline</h2>
-    <ul>
-      <li><b>Chunk.</b> The corpus is split at paragraph and list-item level into <b id="idxsize">…</b> passages, each carrying its parent document and section title. Small chunks retrieve precisely; the title travels with them so context is not lost.</li>
-      <li><b>Embed.</b> <code>all-MiniLM-L6-v2</code> runs <i>in your browser</i> via ONNX Runtime — WebGPU where the browser has it, WASM where it does not, an older runtime where that fails, and BM25 alone if all three do. The index is built on page load, so nothing is precomputed on a server and no text you type leaves the page during retrieval.</li>
-      <li><b>Retrieve, hybrid.</b> BM25 lexical scoring and dense cosine similarity run independently, then fuse by reciprocal rank. Dense alone misses acronyms and proper nouns; lexical alone misses paraphrase. Fusion needs no tuned weight, which is why it is used here rather than a weighted blend.</li>
-      <li><b>Gate.</b> If the best dense similarity falls under the scope threshold, the agent refuses <i>before</i> any model call. Out-of-scope questions therefore cost nothing and cannot be answered incorrectly.</li>
-      <li><b>Generate.</b> The question and the retrieved passages go to a stateless proxy that holds the API key and calls Claude Haiku with a system prompt that forbids any claim not present in the passages, and requires numbered citations. The response streams back token by token.</li>
-      <li><b>Verify.</b> Every generated answer is parsed for citations. Invalid citation indices and uncited claims are flagged in the response itself, not hidden.</li>
-    </ul>
-
-    <h2>Failure behaviour</h2>
-    <p>Three degradation steps, all visible rather than silent. If the embedding model will not load, retrieval falls back to BM25 alone and the status bar says so. If the generator is unreachable or the session cost cap is hit, the agent returns the retrieved source passage verbatim instead of paraphrasing it. If a question falls below the scope gate, it is refused with an email address rather than answered.</p>
-
-    <h2>Honest limitations</h2>
-    <ul>
-      <li>The corpus is small and self-authored. The agent is only as accurate as what Elroy wrote in it, and it has no way to know when he was too generous with himself.</li>
-      <li>The evaluation suite scores retrieval and refusal. It does not score whether the generated prose is good writing.</li>
-      <li>A first page load downloads roughly 25&nbsp;MB of model weights and takes a few seconds. A production version would precompute the index and ship vectors instead — this version builds it live because watching it build is part of the point.</li>
-      <li>The scope gate is calibrated against a suite Elroy also wrote. See the sweep in the Evaluation tab for what other settings would cost.</li>
-    </ul>
-
-    <h2>Stack</h2>
-    <p>One HTML file, no build step, no framework. <code>transformers.js</code> for in-browser embeddings, BM25 and RRF written by hand, a Cloudflare Worker for the key-holding proxy, Claude Haiku for generation.</p>
-  </section>
-
-  <section id="pane-eval" role="tabpanel" class="pane" hidden>
-    <h2>Does this agent actually work?</h2>
-    <p>Building the system is the common skill. Building the instrument that says whether it works is the rarer one, so it ships in the same page. Press the button: the suite runs live, in this browser, against the index that just answered your questions. Nothing below is a hardcoded number.</p>
-    <p><button class="go" id="runeval">Run the evaluation suite</button></p>
-    <div id="evalout" class="small"><p>Not run yet.</p></div>
-
-    <h3>Generation quality</h3>
-    <p class="small">Runs scripted multi-turn conversations through the live generator. Scores each answer on citation faithfulness and topic alignment (embedding cosine to the expected passage). Uses real model calls — cost is shown before running. Leave Model B blank to skip A/B.</p>
-    <div style="display:flex;flex-wrap:wrap;gap:10px;margin:10px 0 14px">
-      <label class="small" style="flex:1 1 200px">Model A<br>
-        <input type="text" id="modelA" style="width:100%;margin-top:4px;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 10px;font:inherit;font-size:.83rem" value="nvidia/nemotron-3-super-120b-a12b:free">
-      </label>
-      <label class="small" style="flex:1 1 200px">Model B (optional)<br>
-        <input type="text" id="modelB" style="width:100%;margin-top:4px;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 10px;font:inherit;font-size:.83rem" placeholder="e.g. anthropic/claude-haiku-4-5">
-      </label>
+  <!-- header -->
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end;padding-bottom:20px">
+    <div>
+      <div class="eyebrow">ask-elroy — a grounded RAG agent over a corpus he wrote</div>
+      <h1 id="pname" style="font-size:54px;margin:0 0 4px;letter-spacing:-.02em;font-weight:700"></h1>
+      <div id="ptag" style="font-size:17px;color:color-mix(in srgb,var(--color-text) 68%,transparent)"></div>
     </div>
-    <p><button class="go" id="rungeneval">Run generation quality eval</button> <span class="small" id="genestcost" style="color:var(--dim)"></span></p>
-    <div id="genout" class="small"><p>Not run yet.</p></div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:12px">
+      <img src="profile.jpeg" alt="Elroy Galbraith" style="width:80px;height:80px;object-fit:cover;object-position:center top;border:1px solid var(--color-divider);display:block">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:340px">
+        <span class="tag tag-outline">no login</span>
+        <span class="tag tag-neutral">retrieval in your browser</span>
+        <span class="tag tag-accent">key held by the worker</span>
+      </div>
+    </div>
+  </div>
 
-    <h3>Session cost</h3>
-    <p class="small" id="costline">no generated answers yet</p>
-  </section>
-</main>
+  <!-- status strip -->
+  <div class="blueprint" style="display:flex;flex-wrap:wrap;gap:6px 24px;padding:11px 16px;margin-bottom:26px;font-size:12px" id="status-strip">
+    <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+    <span id="status-dot" style="display:inline-flex;align-items:center;gap:7px;color:var(--color-dim);font-weight:500">
+      <span id="status-indicator" style="width:7px;height:7px;background:var(--color-warn);display:inline-block"></span>
+      <span id="status-text">starting…</span>
+    </span>
+    <span class="mono" id="status-model" style="color:color-mix(in srgb,var(--color-text) 58%,transparent)"></span>
+    <span class="mono" id="status-index" style="color:color-mix(in srgb,var(--color-text) 58%,transparent)"></span>
+  </div>
 
-<div class="tray">
-  <form id="f" autocomplete="off">
-    <label class="sr" for="q">Ask a question</label>
-    <input type="text" id="q" placeholder="Ask about his work, his stack, work authorization, what he wants next…">
-    <button class="send" type="submit">Ask</button>
-  </form>
+  <!-- tabs -->
+  <div style="display:flex;border-bottom:1px solid var(--color-divider);margin-bottom:28px">
+    <button class="tabbtn" id="tab-chat" aria-current="true">Chat</button>
+    <button class="tabbtn" id="tab-trace" aria-current="false">Trace</button>
+    <button class="tabbtn" id="tab-eval" aria-current="false">Eval</button>
+    <span style="margin-left:auto;align-self:center;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb,var(--color-text) 45%,transparent)" id="tab-hint">grounded answers only</span>
+  </div>
+
+  <!-- ===== CHAT PANEL ===== -->
+  <div id="pane-chat" style="display:grid;grid-template-columns:minmax(0,1fr) 292px;gap:38px;align-items:start;padding-bottom:200px">
+    <div style="min-width:0">
+
+      <!-- read-me -->
+      <div class="blueprint" style="padding:20px 22px;margin-bottom:28px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div class="section-label" style="margin-bottom:9px">Read me first</div>
+        <p style="margin:0 0 8px;font-size:15.5px;max-width:64ch;text-wrap:pretty">I answer recruiter questions about Elroy — his experience, how he works, his stack, and what he wants next — from a fixed corpus he wrote about his own work.</p>
+        <p style="margin:0;font-size:15.5px;max-width:64ch;text-wrap:pretty;color:color-mix(in srgb,var(--color-text) 70%,transparent)">Every answer carries the passages it was built from and a full trace. Below the scope gate I refuse before any model call, so an out-of-scope question costs nothing and cannot be answered wrongly.</p>
+      </div>
+
+      <!-- message log -->
+      <div id="log" role="log" aria-live="polite" aria-label="Conversation" style="display:flex;flex-direction:column;gap:28px"></div>
+
+      <!-- suggestions -->
+      <div id="suggest" style="margin-top:32px"></div>
+    </div>
+
+    <!-- sidebar -->
+    <aside style="position:sticky;top:24px;display:grid;gap:18px">
+      <div class="blueprint" style="padding:16px" id="sidebar-last">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div class="section-label" style="margin-bottom:11px">Last question</div>
+        <div class="mono" style="display:grid;gap:6px;font-size:12px">
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">mode</span><span id="sb-mode">—</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">confidence</span><span id="sb-conf">—</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">gate</span><span id="sb-gate">—</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">decision</span><span id="sb-decision">—</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">retrieve</span><span id="sb-retrieve">—</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">cost</span><span id="sb-cost">—</span></div>
+        </div>
+      </div>
+      <div class="blueprint" style="padding:16px" id="sidebar-session">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div class="section-label" style="margin-bottom:11px">Session</div>
+        <div class="mono" style="display:grid;gap:6px;font-size:12px">
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">answers</span><span id="sb-gens">0 / 40</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">tokens</span><span id="sb-toks">0 / 0</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">spend</span><span id="sb-spend">$0.00000</span></div>
+        </div>
+        <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Nothing you type is stored. No session state on the server; a refresh clears the thread.</p>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ===== TRACE PANEL ===== -->
+  <div id="pane-trace" style="padding-bottom:80px">
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:38px;align-items:start">
+      <div style="min-width:0">
+        <h3 style="margin:0 0 4px;font-size:20px">Retrieval trace</h3>
+        <p style="font-size:14px;color:var(--color-dim);max-width:66ch">BM25 and dense cosine score the corpus independently, then fuse by reciprocal rank. Both signals are kept apart here so you can see which one carried the result — dense alone misses acronyms, lexical alone misses paraphrase.</p>
+
+        <div class="blueprint" style="padding:14px 16px;margin:20px 0 24px" id="trace-query-box">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim);margin-bottom:6px">Query</div>
+          <div id="trace-query" style="font-size:18px;font-weight:600">No question asked yet — ask one in the Chat tab.</div>
+          <div class="mono" id="trace-terms" style="margin-top:8px;font-size:11.5px;color:var(--color-dim)"></div>
+        </div>
+
+        <table class="table" id="trace-table">
+          <thead><tr>
+            <th style="width:34px">#</th>
+            <th>Passage</th>
+            <th style="width:96px">cos / bm25</th>
+            <th style="width:150px">RRF</th>
+            <th style="width:66px">Used</th>
+          </tr></thead>
+          <tbody id="trace-tbody"></tbody>
+        </table>
+      </div>
+
+      <div style="display:grid;gap:18px">
+        <div class="blueprint" style="padding:16px">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div class="section-label" style="margin-bottom:13px">Pipeline</div>
+          <div style="display:grid;gap:11px" id="trace-pipeline">
+            <!-- filled by JS -->
+          </div>
+        </div>
+        <div class="blueprint" style="padding:16px">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div class="section-label" style="margin-bottom:11px">Gate &amp; grounding</div>
+          <div class="mono" style="display:grid;gap:6px;font-size:12px" id="trace-gate">
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">max cosine</span><span id="tg-conf">—</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">scope gate</span><span id="tg-gate">—</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">decision</span><span id="tg-decision">—</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">citations</span><span id="tg-citations">—</span></div>
+            <div style="display:flex;justify-content:space-between;border-top:1px solid var(--color-divider);padding-top:6px"><span style="color:var(--color-dim)">tokens</span><span id="tg-tokens">—</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">cost</span><span id="tg-cost">—</span></div>
+          </div>
+          <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Invalid citation indices and uncited claims are flagged in the answer itself, never hidden. Below the gate the agent refuses before the model call, so the refusal is free.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== EVAL PANEL ===== -->
+  <div id="pane-eval" style="padding-bottom:80px">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:24px">
+      <div>
+        <h3 style="margin:0 0 4px;font-size:20px">Does this agent actually work?</h3>
+        <p style="margin:0;font-size:14.5px;color:var(--color-dim);max-width:66ch;text-wrap:pretty">Building the system is the common skill; building the instrument that says whether it works is the rarer one, so it ships in the same page. The suite runs live, in this browser, against the index that just answered your questions. Nothing below is a hardcoded number.</p>
+      </div>
+      <button class="btn btn-primary blueprint" style="padding:10px 22px;font-size:15px;white-space:nowrap" id="runeval">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        Run the evaluation suite
+      </button>
+    </div>
+
+    <!-- stat cards -->
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:30px" id="eval-cards">
+      <div class="blueprint" style="padding:14px 16px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)" id="ec-r1-label">Retrieval hit@5</div>
+        <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px" id="ec-r1-val">—</div>
+        <div style="font-size:11.5px;color:var(--color-dim)" id="ec-r1-note">not run yet</div>
+      </div>
+      <div class="blueprint" style="padding:14px 16px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)">MRR</div>
+        <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px" id="ec-mrr-val">—</div>
+        <div style="font-size:11.5px;color:var(--color-dim)">mean reciprocal rank</div>
+      </div>
+      <div class="blueprint" style="padding:14px 16px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)">Refusal</div>
+        <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px" id="ec-ref-val">—</div>
+        <div style="font-size:11.5px;color:var(--color-dim)" id="ec-ref-note">out-of-scope probes</div>
+      </div>
+      <div class="blueprint" style="padding:14px 16px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)">Suite cost</div>
+        <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px">$0.00</div>
+        <div style="font-size:11.5px;color:var(--color-dim)">retrieval only — no model calls</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:38px;align-items:start">
+      <div style="min-width:0">
+        <h4 style="margin:0 0 4px;font-size:15px;font-weight:700">Retrieval suite — paraphrased recruiter questions</h4>
+        <p style="margin:0 0 14px;font-size:13px;color:var(--color-dim);max-width:64ch">Written the way a recruiter types them, not the way the canonical questions are worded. The expected document must surface in top-<span id="eval-topk">5</span>.</p>
+        <table class="table" id="eval-table">
+          <thead><tr>
+            <th style="width:30px">#</th><th>Query</th><th style="width:130px">Expected</th>
+            <th style="width:130px">Top hit</th><th style="width:52px">Rank</th>
+            <th style="width:56px">RR</th><th style="width:70px">Result</th>
+          </tr></thead>
+          <tbody id="eval-tbody"><tr><td colspan="7" style="color:var(--color-dim);font-size:13px">Not run yet.</td></tr></tbody>
+        </table>
+
+        <h4 style="margin:32px 0 4px;font-size:15px;font-weight:700">Refusal suite — out-of-scope probes</h4>
+        <p style="margin:0 0 14px;font-size:13px;color:var(--color-dim);max-width:64ch">General knowledge, private data, off-task requests and prompt injection. A pass means the gate fired before any model call.</p>
+        <table class="table" id="oos-table">
+          <thead><tr>
+            <th style="width:30px">#</th><th>Probe</th><th style="width:150px">Class</th>
+            <th style="width:110px">Confidence</th><th style="width:100px">Result</th>
+          </tr></thead>
+          <tbody id="oos-tbody"><tr><td colspan="5" style="color:var(--color-dim);font-size:13px">Not run yet.</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- sweep panel -->
+      <div class="blueprint" style="padding:16px;position:sticky;top:24px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div class="section-label" style="margin-bottom:6px">Scope-gate sweep</div>
+        <p style="margin:0 0 12px;font-size:11.5px;line-height:1.5;color:var(--color-dim)">What each setting costs you: in-scope questions answered against out-of-scope probes refused. The joint optimum is marked.</p>
+        <table class="table" style="font-size:12px" id="sweep-table">
+          <thead><tr><th style="width:52px">gate</th><th>answered</th><th>refused</th><th style="width:44px">joint</th></tr></thead>
+          <tbody id="sweep-tbody"><tr><td colspan="4" style="color:var(--color-dim)">not run yet</td></tr></tbody>
+        </table>
+        <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Two gates exist in the real build: <span class="mono">scopeThreshold</span> for hybrid, <span class="mono">lexThreshold</span> for the BM25-only fallback.</p>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+</div><!-- /min-height -->
+
+<!-- fixed input tray -->
+<div id="input-tray" style="position:fixed;left:0;right:0;bottom:0;background:linear-gradient(to bottom,transparent,var(--color-bg) 34%);padding:36px 40px 22px;pointer-events:none">
+  <div style="max-width:1200px;margin:0 auto;pointer-events:auto">
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;max-width:860px">
+      <label class="sr" for="q">Ask a question</label>
+      <input class="input" type="text" id="q" placeholder="Ask about his work, his stack, work authorization, what he wants next…" autocomplete="off">
+      <button class="btn btn-primary blueprint" style="padding:0 28px;font-size:15px" id="submit-btn">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        Ask
+      </button>
+    </div>
+    <div style="max-width:860px;margin-top:9px;font-size:11.5px;color:var(--color-dim)">Built by Elroy Galbraith as a working sample · retrieval and embedding run in your browser, generation is proxied so no key is exposed · <a id="fmail" href="#" style="color:var(--color-dim)"></a></div>
+  </div>
 </div>
 
-<footer>
-  Built by Elroy Galbraith as a working sample. Retrieval and embedding run in your browser; generation is proxied so no key is exposed. &middot;
-  <a id="fmail" href="#"></a>
-</footer>
-</div>
 <script>
 /* ---------- ANSWER BANK ----------
    Edit freely. Each entry:
@@ -759,7 +924,7 @@ async function retrieve(query, k){
   const ranked = [...fused.entries()].sort((a,b) => b[1]-a[1]).slice(0,k)
     .map(([idx,f]) => ({ p: state.passages[idx], idx, rrf: f,
                          bm25: lex[idx], cos: dense ? dense[idx] : null }));
-  return { hits: ranked, conf, msEmbed: tEmbed, msTotal: performance.now()-t0 };
+  return { hits: ranked, conf, terms: toks(query), msEmbed: tEmbed, msTotal: performance.now()-t0 };
 }
 
 /* ---------------- 5. generation (proxied) ---------------- */
@@ -849,538 +1014,540 @@ function checkGrounding(text, hits){
 }
 
 /* =====================================================================
-   UI layer: chat, trace inspector, evaluation harness
+   UI layer: chat, trace panel, sidebar, evaluation harness
    ===================================================================== */
 const $ = s => document.querySelector(s);
-const logEl = $("#log"), sugEl = $("#suggest"), statusEl = $("#status");
 
-function bubble(html, mine){
-  const d = document.createElement("div");
-  d.className = "msg" + (mine ? " me" : "");
-  d.innerHTML = '<div class="bubble">' + html + "</div>";
-  logEl.appendChild(d);
-  d.scrollIntoView({ behavior:"smooth", block:"nearest" });
-  return d.querySelector(".bubble");
+/* ---- tabs ---- */
+function showTab(name){
+  ["chat","trace","eval"].forEach(t => {
+    const btn = $("#tab-"+t);
+    if(btn) btn.setAttribute("aria-current", t === name ? "true" : "false");
+    const panel = $("#pane-"+t);
+    if(panel) panel.style.display = t === name ? (t === "chat" ? "grid" : "block") : "none";
+  });
+  $("#input-tray").style.display = name === "chat" ? "" : "none";
+  const hints = {chat:"grounded answers only", trace:"why these passages", eval:"runs live in this browser"};
+  $("#tab-hint").textContent = hints[name] || "";
 }
-function setStatus(t, cls){ statusEl.innerHTML = t; statusEl.className = "status " + (cls||""); }
 
-/* ---- visitor identification ---- */
-let visitor = null;
+/* ---- status strip ---- */
+function setStatus(text, state){
+  const dot = $("#status-indicator");
+  if(dot) dot.style.background = state === "ok" ? "var(--color-ok)" : state === "warn" ? "var(--color-warn)" : "var(--color-dim)";
+  const el = $("#status-text");
+  if(el) el.textContent = text;
+}
+function setStatusDetails(model, index){
+  const m = $("#status-model"); if(m) m.textContent = model || "";
+  const i = $("#status-index"); if(i) i.textContent = index || "";
+}
+
+/* ---- sidebar ---- */
+function updateSidebar(trace){
+  if(!trace) return;
+  const cost = trace.usage
+    ? ((trace.usage.input_tokens/1e6)*CONFIG.price.in + (trace.usage.output_tokens/1e6)*CONFIG.price.out)
+    : (trace.answered ? 0 : 0);
+  const g = gate();
+  $("#sb-mode").textContent = state.mode + (state.backend ? " · " + state.backend.split(" · ")[1] : "");
+  $("#sb-conf").textContent = trace.conf.toFixed(3);
+  $("#sb-gate").textContent = g.toFixed(2);
+  $("#sb-decision").textContent = trace.answered ? "answer" : "refuse";
+  $("#sb-retrieve").textContent = Math.round(trace.msRetrieve) + " ms";
+  $("#sb-cost").textContent = trace.usage ? "$" + cost.toFixed(5) : "$0.00000";
+}
+function updateSessionSidebar(){
+  const cost = (state.tokIn/1e6)*CONFIG.price.in + (state.tokOut/1e6)*CONFIG.price.out;
+  $("#sb-gens").textContent = state.gens + " / " + CONFIG.maxGenPerSession;
+  $("#sb-toks").textContent = state.tokIn + " / " + state.tokOut;
+  $("#sb-spend").textContent = "$" + cost.toFixed(5);
+}
+
+/* ---- trace panel ---- */
+function updateTracePanel(trace){
+  $("#trace-query").textContent = trace.query;
+  $("#trace-terms").textContent = trace.terms.length ? "tokens: " + trace.terms.join(" · ") : "tokens: —";
+
+  const tbody = $("#trace-tbody");
+  tbody.innerHTML = trace.rows.map((h, i) => {
+    const bar = Math.max(2, Math.round(h.rrf / 0.033 * 100));
+    const used = i < trace.k;
+    return `<tr>
+      <td class="mono" style="color:var(--color-dim);font-size:12px">${String(i+1).padStart(2,"0")}</td>
+      <td>
+        <div class="mono" style="font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--color-accent-700);margin-bottom:2px">${esc(h.p.pid)}</div>
+        <div style="font-size:13.5px;line-height:1.45;max-width:56ch;text-wrap:pretty">${esc(h.p.text)}</div>
+        ${h.hit && h.hit.length ? `<div style="font-size:11.5px;margin-top:3px;color:var(--color-dim)">matched ${h.hit.slice(0,5).map(esc).join(", ")}</div>` : `<div style="font-size:11.5px;margin-top:3px;color:var(--color-dim)">fused on rank, no direct term overlap</div>`}
+      </td>
+      <td class="mono" style="font-size:11.5px;color:var(--color-dim)">
+        <div>${h.cos !== null ? "cos " + h.cos.toFixed(3) : "—"}</div>
+        <div>bm25 ${h.bm25.toFixed(2)}</div>
+      </td>
+      <td>
+        <div style="height:8px;background:color-mix(in srgb,var(--color-text) 9%,transparent);position:relative">
+          <div style="position:absolute;inset:0 auto 0 0;background:var(--color-accent);width:${bar}%"></div>
+        </div>
+        <div class="mono" style="font-size:11.5px;margin-top:4px">${h.rrf.toFixed(4)}</div>
+      </td>
+      <td class="mono" style="font-size:11.5px">${used ? "yes" : "—"}</td>
+    </tr>`;
+  }).join("");
+
+  // pipeline
+  const passCount = state.passages.length;
+  const g = gate();
+  const pipeline = [
+    {n:"01", name:"Chunk", detail:"paragraph and list-item level, title travels with the chunk", ms:"cached"},
+    {n:"02", name:"Embed query", detail:"all-MiniLM-L6-v2 · WASM · q8", ms: trace.msEmbed ? Math.round(trace.msEmbed) + " ms" : "—"},
+    {n:"03", name:"BM25 + dense", detail:"scored independently over " + passCount + " passages", ms: Math.round(trace.msRetrieve) + " ms"},
+    {n:"04", name:"RRF fusion", detail:"reciprocal rank, k=60, no tuned weight", ms:"<1 ms"},
+    {n:"05", name:"Scope gate", detail:"max cosine vs " + g.toFixed(2) + ", before any model call", ms: trace.answered ? "pass" : "refuse"},
+    {n:"06", name:"Generate + verify", detail:"worker holds the key; citations parsed and checked", ms: trace.answered ? (trace.msGen ? Math.round(trace.msGen) + " ms" : "ready") : "skipped"}
+  ];
+  $("#trace-pipeline").innerHTML = pipeline.map(p => `
+    <div style="display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:10px;align-items:baseline">
+      <span class="mono" style="font-size:11px;color:var(--color-accent)">${p.n}</span>
+      <div>
+        <div style="font-size:13.5px">${p.name}</div>
+        <div style="font-size:11.5px;color:var(--color-dim);text-wrap:pretty">${p.detail}</div>
+      </div>
+      <span class="mono" style="font-size:11.5px">${p.ms}</span>
+    </div>`).join("");
+
+  // gate & grounding
+  const cost = trace.usage
+    ? ((trace.usage.input_tokens/1e6)*CONFIG.price.in + (trace.usage.output_tokens/1e6)*CONFIG.price.out) : 0;
+  $("#tg-conf").textContent = trace.conf.toFixed(3);
+  $("#tg-gate").textContent = g.toFixed(2);
+  $("#tg-decision").textContent = trace.answered ? "answer" : "refuse";
+  $("#tg-citations").textContent = trace.ground
+    ? (trace.ground.ok ? "valid · " + Math.round(trace.ground.coverage*100) + "% cited" : "FLAG — check answer")
+    : (trace.answered ? "n/a" : "n/a");
+  $("#tg-tokens").textContent = trace.usage ? trace.usage.input_tokens + " in / " + trace.usage.output_tokens + " out" : "—";
+  $("#tg-cost").textContent = trace.usage ? "$" + cost.toFixed(5) : "$0.00000";
+}
+
+/* ---- chat messages ---- */
+const logEl = $("#log");
+
+function appendUserMsg(text){
+  const d = document.createElement("div");
+  d.innerHTML = `<div style="display:flex;justify-content:flex-end">
+    <div style="background:var(--color-accent-900);color:var(--color-bg);padding:10px 15px;font-size:15px;max-width:72%">${esc(text)}</div>
+  </div>`;
+  logEl.appendChild(d);
+  d.scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+
+function appendBotMsg(label, meta){
+  const d = document.createElement("div");
+  d.innerHTML = `
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+      <span style="font-weight:600;font-size:15px;letter-spacing:.05em;text-transform:uppercase">${esc(label)}</span>
+      <span class="mono" style="font-size:11px;color:var(--color-dim)">${esc(meta)}</span>
+    </div>
+    <div style="border-left:2px solid var(--color-accent);padding-left:17px;max-width:72ch">
+      <div class="msg-body"></div>
+    </div>
+    <div class="msg-cites" style="margin-top:16px"></div>
+    <div class="msg-actions" style="margin-top:8px"></div>`;
+  logEl.appendChild(d);
+  d.scrollIntoView({behavior:"smooth", block:"nearest"});
+  return d;
+}
+
+function renderAnswerIntoMsg(el, text, hits){
+  const body = el.querySelector(".msg-body");
+  const html = esc(text)
+    .replace(/\[(\d+)\]/g, (m,n) => `<sup style="color:var(--color-accent);font-weight:600;cursor:help" title="${esc((hits[n-1]||{p:{text:""}}).p.text.slice(0,180))}">[${n}]</sup>`)
+    .split(/\n{2,}/).map(p => `<p style="margin:0 0 11px;font-size:15.5px;line-height:1.62;text-wrap:pretty">${p.replace(/\n/g,"<br>")}</p>`).join("");
+  body.innerHTML = html;
+}
+
+function setStreamingCaret(el, on){
+  const body = el.querySelector(".msg-body");
+  const existing = body.querySelector(".caret");
+  if(on && !existing){ const c = document.createElement("span"); c.className = "caret"; body.appendChild(c); }
+  if(!on && existing) existing.remove();
+}
+
+function renderCitesInMsg(el, hits, passCount){
+  const cites = el.querySelector(".msg-cites");
+  if(!hits || !hits.length){ cites.innerHTML = ""; return; }
+  cites.innerHTML = `
+    <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim);margin-bottom:10px">Retrieved passages · ${hits.length} of ${passCount}</div>
+    <div style="display:grid;gap:12px">
+      ${hits.map((h,i) => `
+        <div class="blueprint" style="display:grid;grid-template-columns:32px minmax(0,1fr) 92px;gap:14px;padding:11px 14px">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <span class="mono" style="font-size:13px;color:var(--color-accent);font-weight:700">[${i+1}]</span>
+          <div style="min-width:0">
+            <div class="mono" style="font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--color-dim);margin-bottom:3px">${esc(h.p.pid)}</div>
+            <div style="font-size:13.5px;line-height:1.5;text-wrap:pretty">${esc(h.p.text)}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="mono" style="font-size:12.5px">${h.cos !== null ? h.cos.toFixed(3) : "—"}</div>
+            <div style="font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--color-dim)">cosine</div>
+          </div>
+        </div>`).join("")}
+    </div>`;
+}
+
+function addTraceLink(el){
+  const actions = el.querySelector(".msg-actions");
+  const btn = document.createElement("button");
+  btn.className = "btn-ghost";
+  btn.textContent = "Open the full trace →";
+  btn.onclick = () => showTab("trace");
+  actions.appendChild(btn);
+}
+
+/* ---- refusal message ---- */
+function appendRefusal(meta){
+  const d = appendBotMsg("Refused — below the scope gate", meta);
+  const body = d.querySelector(".msg-body");
+  body.innerHTML = `
+    <p style="margin:0 0 11px;font-size:15.5px;line-height:1.62">That is outside the corpus Elroy wrote, so I will not answer it — the gate fires before any model call, which is why an out-of-scope question costs nothing here.</p>
+    <p style="margin:0;font-size:15.5px;line-height:1.62">Email him at <a href="mailto:${esc(PROFILE.email)}" style="color:var(--color-accent)">${esc(PROFILE.email)}</a> and he will answer directly.</p>`;
+  return d;
+}
+
+/* ---- suggestion chips ---- */
+let activeCat = CATS[0];
 let visitorDismissed = false;
+let visitor = null;
+const sugEl = $("#suggest");
 
 function renderVisitorCard(){
   const card = document.createElement("div");
-  card.className = "visitor-card";
-  card.setAttribute("role", "button");
-  card.setAttribute("tabindex", "0");
+  card.style.cssText = "background:var(--color-panel);border:1px solid var(--color-divider);padding:12px 16px;margin-bottom:14px;cursor:pointer;display:flex;align-items:center;gap:10px";
+  card.innerHTML = `<span style="font-size:1.1rem;flex-shrink:0">👋</span><span><span style="font-size:.88rem">Before you start — who are you?</span> <span style="font-size:.8rem;color:var(--color-dim)">(optional — skip and ask anything)</span></span>`;
   function openForm(){ showVisitorForm(card); }
   card.onclick = openForm;
-  card.onkeydown = e => { if(e.key === "Enter" || e.key === " "){ e.preventDefault(); openForm(); } };
-  card.innerHTML = `<span class="visitor-icon">👋</span><span><span class="visitor-prompt">Before you start — who are you?</span> <span class="visitor-opt">(optional — skip and ask anything)</span></span>`;
   return card;
 }
 
 function showVisitorForm(card){
-  card.onclick = null; card.onkeydown = null;
-  card.className = "visitor-card open";
+  card.onclick = null;
+  card.style.flexDirection = "column"; card.style.alignItems = "stretch"; card.style.cursor = "default";
   card.innerHTML = `
     <form id="vf" autocomplete="off">
-      <div class="vf-fields">
-        <input type="text" id="vf-name" placeholder="Name" autocomplete="name">
-        <input type="text" id="vf-co" placeholder="Company" autocomplete="organization">
-        <input type="text" id="vf-role" placeholder="Role">
+      <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px">
+        <input type="text" id="vf-name" placeholder="Name" style="flex:1 1 120px;background:var(--color-bg);border:1px solid var(--color-divider);color:var(--color-text);border-radius:0;padding:7px 10px;font-family:var(--font-body);font-size:.83rem;min-width:0">
+        <input type="text" id="vf-co" placeholder="Company" style="flex:1 1 120px;background:var(--color-bg);border:1px solid var(--color-divider);color:var(--color-text);border-radius:0;padding:7px 10px;font-family:var(--font-body);font-size:.83rem;min-width:0">
+        <input type="text" id="vf-role" placeholder="Role" style="flex:1 1 120px;background:var(--color-bg);border:1px solid var(--color-divider);color:var(--color-text);border-radius:0;padding:7px 10px;font-family:var(--font-body);font-size:.83rem;min-width:0">
       </div>
-      <div class="vf-actions">
+      <div style="display:flex;gap:7px">
         <button type="submit" class="chip">Done</button>
-        <button type="button" class="chip vf-skip">Skip</button>
+        <button type="button" class="chip" id="vf-skip">Skip</button>
       </div>
     </form>`;
   card.querySelector("#vf").onsubmit = e => {
     e.preventDefault();
     const name = card.querySelector("#vf-name").value.trim();
-    const co   = card.querySelector("#vf-co").value.trim();
-    const role = card.querySelector("#vf-role").value.trim();
-    visitor = { name, company: co, role };
+    visitor = { name, company: card.querySelector("#vf-co").value.trim(), role: card.querySelector("#vf-role").value.trim() };
     visitorDismissed = true;
     renderSuggest(null);
-    if(name) bubble(`<p>Thanks, ${esc(name)}! What would you like to know?</p>`, false);
+    if(name){
+      const d = appendBotMsg("Hey there", "");
+      d.querySelector(".msg-body").innerHTML = `<p style="margin:0;font-size:15.5px;line-height:1.62">Thanks, ${esc(name)}! What would you like to know?</p>`;
+    }
   };
-  card.querySelector(".vf-skip").onclick = () => { visitorDismissed = true; renderSuggest(null); };
+  card.querySelector("#vf-skip").onclick = () => { visitorDismissed = true; renderSuggest(null); };
   setTimeout(() => card.querySelector("#vf-name").focus(), 0);
 }
 
-/* ---- suggestion chips ---- */
-let activeCat = CATS[0];
 function renderSuggest(list, heading){
   sugEl.innerHTML = "";
   if(!visitorDismissed) sugEl.appendChild(renderVisitorCard());
-  const h = document.createElement("p");
-  h.className = "qhead"; h.innerHTML = heading || "Suggested questions";
+
+  const h = document.createElement("div");
+  h.style.cssText = "font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim);margin-bottom:11px";
+  h.textContent = heading || "Suggested questions";
   sugEl.appendChild(h);
+
   if(!list){
-    const cats = document.createElement("div"); cats.className = "chips";
+    const cats = document.createElement("div");
+    cats.style.cssText = "display:flex;flex-wrap:wrap;gap:7px;margin-bottom:13px";
     CATS.forEach(c => {
       const b = document.createElement("button");
-      b.className = "chip cat"; b.type = "button"; b.innerHTML = c;
-      b.setAttribute("aria-pressed", c === activeCat);
+      b.className = "chip cat";
+      b.setAttribute("data-on", c === activeCat ? "1" : "0");
+      b.textContent = c;
       b.onclick = () => { activeCat = c; renderSuggest(null, heading); };
       cats.appendChild(b);
     });
     sugEl.appendChild(cats);
-    list = BANK.filter(e => e.cat === activeCat).map(e => e.q);
+    list = BANK.filter(e => e.cat === activeCat || e.cat === activeCat.replace("&amp;","&")).map(e => e.q);
   }
-  const w = document.createElement("div"); w.className = "chips";
+
+  const w = document.createElement("div");
+  w.style.cssText = "display:flex;flex-wrap:wrap;gap:7px";
   list.forEach(q => {
     const b = document.createElement("button");
-    b.className = "chip"; b.type = "button"; b.textContent = q;
+    b.className = "chip"; b.textContent = q;
     b.onclick = () => ask(q);
     w.appendChild(b);
   });
   sugEl.appendChild(w);
 }
 
-/* ---- trace inspector ---- */
-function traceHTML(o){
-  const rows = o.hits.map((h,i) =>
-    `<tr><td>[${i+1}]</td><td>${esc(h.p.pid)}</td>
-     <td>${h.cos === null ? "—" : h.cos.toFixed(3)}</td>
-     <td>${h.bm25.toFixed(2)}</td><td>${h.rrf.toFixed(4)}</td></tr>`).join("");
-  const cost = o.usage
-    ? ((o.usage.input_tokens/1e6)*CONFIG.price.in + (o.usage.output_tokens/1e6)*CONFIG.price.out) : 0;
-  return `<details class="trace"><summary>trace &middot; ${o.decision} &middot; ${Math.round(o.msTotal)} ms${
-      o.usage ? " &middot; $" + cost.toFixed(5) : ""}</summary>
-    <div class="tracebody">
-      <div class="kv"><span>mode</span><b>${state.mode}${state.backend ? " · " + state.backend : ""}</b></div>
-      <div class="kv"><span>embed query</span><b>${o.msEmbed ? Math.round(o.msEmbed)+" ms" : "n/a"}</b></div>
-      <div class="kv"><span>retrieve</span><b>${Math.round(o.msRetrieve)} ms</b></div>
-      <div class="kv"><span>confidence (${state.mode === "hybrid" ? "max cosine" : "idf coverage"})</span><b>${o.conf.toFixed(3)} vs gate ${gate().toFixed(2)} (${state.mode})</b></div>
-      <div class="kv"><span>decision</span><b>${o.decision}</b></div>
-      ${o.msGen ? `<div class="kv"><span>generate</span><b>${Math.round(o.msGen)} ms</b></div>` : ""}
-      ${o.usage ? `<div class="kv"><span>tokens</span><b>${o.usage.input_tokens} in / ${o.usage.output_tokens} out</b></div>
-                   <div class="kv"><span>cost</span><b>$${cost.toFixed(5)}</b></div>` : ""}
-      ${o.ground ? `<div class="kv"><span>groundedness</span><b>${o.ground.ok ? "citations valid" : "FLAG"} &middot; ${Math.round(o.ground.coverage*100)}% of claims cited</b></div>` : ""}
-      <table class="tt"><tr><th>#</th><th>passage</th><th>cos</th><th>bm25</th><th>rrf</th></tr>${rows}</table>
-    </div></details>`;
-}
-function sourcesHTML(hits){
-  return `<details class="src"><summary>${hits.length} retrieved passages</summary>` +
-    hits.map((h,i) => `<p class="srcp"><b>[${i+1}]</b> <i>${esc(h.p.title)}</i><br>${esc(h.p.text)}</p>`).join("") +
-    "</details>";
-}
-function renderAnswer(text, hits){
-  const html = esc(text)
-    .replace(/\[(\d+)\]/g, (m,n) => `<sup class="cite" title="${esc((hits[n-1]||{p:{text:""}}).p.text.slice(0,180))}">[${n}]</sup>`)
-    .split(/\n{2,}/).map(p => "<p>" + p.replace(/\n/g,"<br>") + "</p>").join("");
-  return html;
-}
-
 /* ---- the ask loop ---- */
-const history = [];   // [{role:"user"|"assistant", content:string}], last 3 exchanges
+const history = [];
 let busy = false;
+
 async function ask(text){
   const q = String(text).trim();
   if(!q || busy) return;
   visitorDismissed = true;
   busy = true;
-  bubble(esc(q), true);
+  appendUserMsg(q);
   $("#q").value = "";
-  const holder = bubble('<span class="think">retrieving…</span>', false);
 
-  try{
-    // Short follow-ups ("tell me more", "elaborate") have no retrieval signal on their own.
-    // Prepend the previous user question so the scope gate and retrieval see enough context.
-    let retrievalQ = q;
-    if(history.length > 0 && toks(q).length <= 5){
-      const prev = [...history].reverse().find(m => m.role === "user");
-      if(prev) retrievalQ = prev.content + " " + q;
+  // short follow-up augmentation
+  let retrievalQ = q;
+  if(history.length > 0 && toks(q).length <= 5){
+    const prev = [...history].reverse().find(m => m.role === "user");
+    if(prev) retrievalQ = prev.content + " " + q;
+  }
+
+  const t0 = performance.now();
+  const r = await retrieve(retrievalQ);
+  const msRetrieve = performance.now() - t0 - r.msEmbed;
+  const g = gate();
+
+  // build trace object (partial — fill in more after generation)
+  const trace = {
+    query: q, terms: r.terms,
+    rows: r.hits.slice(0, 8).map((h, i) => ({
+      p: h.p, rrf: h.rrf, bm25: h.bm25, cos: h.cos,
+      hit: toks(q).filter(t => h.p.text.toLowerCase().includes(t))
+    })),
+    k: r.hits.length, conf: r.conf,
+    msEmbed: r.msEmbed, msRetrieve, msGen: null,
+    answered: r.conf >= g, usage: null, ground: null
+  };
+
+  if(r.conf < g){
+    const meta = "cos " + r.conf.toFixed(3) + " < gate " + g.toFixed(2) + " · refused before the model call · $0.00000";
+    appendRefusal(meta);
+    updateSidebar({...trace, msRetrieve});
+    updateTracePanel(trace);
+    if(CONFIG.generatorUrl){
+      fetch(CONFIG.generatorUrl + "/log", {
+        method:"POST", headers:{"content-type":"application/json"},
+        body: JSON.stringify({question:q, outcome:"refused", session_id:state.sessionId,
+          ...(visitor && {visitor_name:visitor.name, visitor_co:visitor.company})})
+      }).catch(()=>{});
     }
-    const r = await retrieve(retrievalQ);
-    const t = { hits:r.hits, conf:r.conf, msEmbed:r.msEmbed, msRetrieve:r.msTotal - r.msEmbed,
-                msTotal:r.msTotal, decision:"answer" };
+    renderSuggest(null, "Things I can answer");
+    busy = false; return;
+  }
 
-    if(r.conf < gate()){
-      t.decision = "refused (below scope gate)";
-      holder.innerHTML =
-        `<p>That is outside what I hold about Elroy, so I will not guess at it — this agent only answers from a fixed corpus he wrote.</p>
-         <p>Email him and he will answer it himself: <a href="mailto:${PROFILE.email}">${PROFILE.email}</a></p>` + traceHTML(t);
-      if(CONFIG.generatorUrl){
-        fetch(CONFIG.generatorUrl + "/log", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ question: q, outcome: "refused", session_id: state.sessionId,
-            ...(visitor && { visitor_name: visitor.name, visitor_co: visitor.company }) })
-        }).catch(() => {});
-      }
-      renderSuggest(null, "Things I can answer");
-      busy = false; return;
-    }
+  const passCount = state.passages.length;
+  const meta = "cos " + r.conf.toFixed(3) + " ≥ gate " + g.toFixed(2) + " · " + r.hits.length + " passages";
+  const msgEl = appendBotMsg("Answer", meta + " · retrieving…");
 
-    if(CONFIG.generatorUrl && state.gens < CONFIG.maxGenPerSession){
-      holder.innerHTML = '<span class="think">generating…</span>';
-      const g0 = performance.now();
-      let acc = "";
+  if(CONFIG.generatorUrl && state.gens < CONFIG.maxGenPerSession){
+    setStreamingCaret(msgEl, true);
+    const g0 = performance.now();
+    let acc = "";
+    try{
       const out = await generate(q, r.hits, tok => {
         acc += tok;
-        holder.innerHTML = renderAnswer(acc, r.hits);
+        renderAnswerIntoMsg(msgEl, acc, r.hits);
+        setStreamingCaret(msgEl, true);
+        msgEl.scrollIntoView({behavior:"smooth", block:"nearest"});
       }, history);
-      t.msGen = performance.now() - g0;
-      t.usage = out.usage;
-      t.ground = checkGrounding(out.text, r.hits);
-      t.msTotal = r.msTotal + t.msGen;
+      trace.msGen = performance.now() - g0;
+      trace.usage = out.usage;
+      trace.ground = checkGrounding(out.text, r.hits);
+      setStreamingCaret(msgEl, false);
+      renderAnswerIntoMsg(msgEl, out.text, r.hits);
+
+      if(!trace.ground.ok){
+        const flag = document.createElement("p");
+        flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
+        flag.textContent = "Groundedness flag: this answer did not cite its sources cleanly. Treat it with suspicion and check the passages below.";
+        msgEl.querySelector(".msg-body").appendChild(flag);
+      }
+
+      renderCitesInMsg(msgEl, r.hits, passCount);
+      addTraceLink(msgEl);
+
+      // update meta line
+      const metaEl = msgEl.querySelector(".mono");
+      if(metaEl){
+        const cost = out.usage ? ((out.usage.input_tokens/1e6)*CONFIG.price.in + (out.usage.output_tokens/1e6)*CONFIG.price.out) : 0;
+        metaEl.textContent = "cos " + r.conf.toFixed(3) + " ≥ gate " + g.toFixed(2) + " · " + r.hits.length + " passages · $" + cost.toFixed(5);
+      }
+
       state.gens++;
       if(out.usage){
         state.tokIn += out.usage.input_tokens; state.tokOut += out.usage.output_tokens;
-        state.costUSD += (out.usage.input_tokens/1e6)*CONFIG.price.in
-                       + (out.usage.output_tokens/1e6)*CONFIG.price.out;
-        refreshCost();
+        state.costUSD += (out.usage.input_tokens/1e6)*CONFIG.price.in + (out.usage.output_tokens/1e6)*CONFIG.price.out;
       }
-      holder.innerHTML = renderAnswer(out.text, r.hits)
-        + (t.ground.ok ? "" : '<p class="flag">Groundedness flag: this answer did not cite its sources cleanly. Treat it with suspicion and check the passages below.</p>')
-        + sourcesHTML(r.hits) + traceHTML(t);
-      history.push({role:"user", content: q}, {role:"assistant", content: out.text});
-      if(history.length > 6) history.splice(0, 2);
-    } else {
-      // retrieval-only mode: return the curated source answer verbatim, no paraphrase
-      const docIdx = IDS.indexOf(r.hits[0].p.docId);
-      t.decision = CONFIG.generatorUrl ? "retrieval-only (session cost cap reached)" : "retrieval-only (no generator configured)";
-      holder.innerHTML = BANK[docIdx].a
-        + `<p class="modeflag">Retrieval-only mode: that is the source passage verbatim, not generated prose. ${
-            CONFIG.generatorUrl ? "The session cost cap was reached." : "No generator endpoint is configured."}</p>`
-        + sourcesHTML(r.hits) + traceHTML(t);
+      history.push({role:"user",content:q},{role:"assistant",content:out.text});
+      if(history.length > 6) history.splice(0,2);
+
+    } catch(err){
+      setStreamingCaret(msgEl, false);
+      const body = msgEl.querySelector(".msg-body");
+      body.innerHTML = `<p style="color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px">The generator failed (${esc(err.message)}). Falling back is safer than faking it — ask again and you will get the retrieved source passage instead.</p>`;
+      if(CONFIG.generatorUrl){
+        fetch(CONFIG.generatorUrl + "/log", {method:"POST",headers:{"content-type":"application/json"},
+          body:JSON.stringify({question:q, outcome:"error", session_id:state.sessionId,
+            ...(visitor && {visitor_name:visitor.name, visitor_co:visitor.company})})
+        }).catch(()=>{});
+      }
+      CONFIG.generatorUrl = "";
     }
-    const rel = r.hits.map(h => h.p.title).filter((v,i,a) => a.indexOf(v) === i).slice(1,4);
-    renderSuggest(rel.length ? rel : null, rel.length ? "Related" : "Suggested questions");
-  } catch(err){
-    holder.innerHTML = `<p class="flag">The generator failed (${esc(err.message)}). Falling back is safer than faking it — ask again and you will get the retrieved source passage instead.</p>`;
-    if(CONFIG.generatorUrl){
-      fetch(CONFIG.generatorUrl + "/log", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question: q, outcome: "error", session_id: state.sessionId,
-          ...(visitor && { visitor_name: visitor.name, visitor_co: visitor.company }) })
-      }).catch(() => {});
-    }
-    CONFIG.generatorUrl = "";
+  } else {
+    // retrieval-only mode
+    setStreamingCaret(msgEl, false);
+    const docIdx = IDS.indexOf(r.hits[0].p.docId);
+    const body = msgEl.querySelector(".msg-body");
+    body.innerHTML = BANK[docIdx].a + `<p style="color:var(--color-dim);font-size:.79rem;border-top:1px dashed var(--color-divider);padding-top:8px;margin-top:8px">Retrieval-only mode: that is the source passage verbatim, not generated prose. ${CONFIG.generatorUrl ? "The session cost cap was reached." : "No generator endpoint is configured."}</p>`;
+    renderCitesInMsg(msgEl, r.hits, passCount);
+    addTraceLink(msgEl);
   }
+
+  updateSidebar({...trace, msRetrieve});
+  updateTracePanel(trace);
+  updateSessionSidebar();
+
+  const rel = r.hits.map(h => h.p.title).filter((v,i,a) => a.indexOf(v) === i).slice(1,4);
+  renderSuggest(rel.length ? rel : null, rel.length ? "Related" : "Suggested questions");
   busy = false;
 }
 
 /* =====================================================================
-   GENERATION QUALITY EVAL
-   ===================================================================== */
-function updateGenCostEst(){
-  const el = document.getElementById("genestcost");
-  if(!el) return;
-  const modelB = document.getElementById("modelB");
-  const models = modelB && modelB.value.trim() ? 2 : 1;
-  const turns = GEN_SUITE.flatMap(s => s.turns).filter(t => !t.expect_refuse).length;
-  el.textContent = `est. $${(turns * models * 0.003).toFixed(3)} (${turns * models} model calls)`;
-}
-
-async function runGenEval(){
-  const genout = document.getElementById("genout");
-  if(!CONFIG.generatorUrl){
-    genout.innerHTML = '<p class="flag">No generator URL configured — generation quality eval requires the live worker.</p>';
-    return;
-  }
-  const modelA = (document.getElementById("modelA").value || "").trim();
-  const modelB = (document.getElementById("modelB").value || "").trim();
-  const models = [modelA, modelB || null].filter(Boolean);
-
-  genout.innerHTML = '<p class="think">running generation quality suite…</p>';
-
-  const results = {};
-  for(const model of models){
-    results[model] = [];
-    for(const scenario of GEN_SUITE){
-      const hist = [];
-      for(const turn of scenario.turns){
-        // mirror the augmentation the chat does for short follow-ups
-        let retrievalQ = turn.q;
-        if(hist.length > 0 && toks(turn.q).length <= 5){
-          const prev = [...hist].reverse().find(m => m.role === "user");
-          if(prev) retrievalQ = prev.content + " " + turn.q;
-        }
-        const r = await retrieve(retrievalQ);
-
-        // Refusal turns: the whole point is to check the gate fires.
-        if(turn.expect_refuse){
-          results[model].push({ scenario: scenario.label, turn: turn.q,
-            expect_refuse: true, refused_ok: r.conf < gate(), conf: r.conf });
-          break;
-        }
-
-        // Intermediate turns (no expect_doc) build history only — do NOT gate-check
-        // them, because a near-threshold query would abort the whole scenario before
-        // the scored follow-up gets a chance to run.
-        if(!turn.expect_doc){
-          let txt = "";
-          try{ const o = await generate(turn.q, r.hits, t => { txt += t; }, hist, model || undefined);
-               txt = o.text; } catch(e){ break; }
-          hist.push({role:"user",content:turn.q},{role:"assistant",content:txt});
-          if(hist.length > 6) hist.splice(0,2);
-          continue;
-        }
-
-        // Scored turns: gate fires → record as unexpected miss, stop scenario.
-        if(r.conf < gate()){
-          results[model].push({ scenario: scenario.label, turn: turn.q,
-            expect_doc: turn.expect_doc, gate_miss: true, conf: r.conf });
-          break;
-        }
-
-        let genText = "", genErr = null;
-        try{
-          const o = await generate(turn.q, r.hits, tok => { genText += tok; }, hist, model || undefined);
-          genText = o.text;
-          if(o.usage){ state.tokIn += o.usage.input_tokens; state.tokOut += o.usage.output_tokens;
-            state.costUSD += (o.usage.input_tokens/1e6)*CONFIG.price.in + (o.usage.output_tokens/1e6)*CONFIG.price.out; }
-        } catch(e){ genErr = e.message; }
-        state.gens++;
-        hist.push({role:"user",content:turn.q},{role:"assistant",content:genText});
-        if(hist.length > 6) hist.splice(0,2);
-
-        if(genErr){ results[model].push({ scenario: scenario.label, turn: turn.q,
-            expect_doc: turn.expect_doc, error: genErr }); break; }
-
-        const ground = checkGrounding(genText, r.hits);
-        let alignment = null;
-        if(state.mode === "hybrid" && state.embedder){
-          const pidx = state.passages.findIndex(p => p.docId === turn.expect_doc);
-          if(pidx >= 0){
-            try{
-              const av = (await embed([genText.slice(0, 500)]))[0];
-              if(av && av.length) alignment = dot(av, state.vecs[pidx]);
-            } catch(_){ /* embedder unavailable for alignment scoring */ }
-          }
-        }
-        results[model].push({ scenario: scenario.label, turn: turn.q,
-          expect_doc: turn.expect_doc, citation_ok: ground.ok,
-          coverage: ground.coverage, alignment });
-      }
-    }
-  }
-  refreshCost();
-  renderGenResults(results, models, genout);
-}
-
-function renderGenResults(results, models, genout){
-  let html = "";
-  for(const model of models){
-    const scored = results[model].filter(r => r.expect_doc && !r.error && !r.gate_miss);
-    const citOk  = scored.filter(r => r.citation_ok).length;
-    const avgCov = scored.length ? scored.reduce((a,r) => a + r.coverage, 0) / scored.length : 0;
-    const aligned = scored.filter(r => r.alignment !== null && r.alignment !== undefined);
-    const avgAlign = aligned.length ? aligned.reduce((a,r) => a + r.alignment, 0) / aligned.length : null;
-    const refRows = results[model].filter(r => r.expect_refuse);
-    const refOk   = refRows.filter(r => r.refused_ok).length;
-    html += `<p class="small" style="margin:14px 0 4px;color:var(--dim)">Model: <b style="color:var(--ink)">${esc(model)}</b></p>
-    <div class="cards">
-      <div class="card"><b>${citOk}/${scored.length}</b><span>citation OK</span></div>
-      <div class="card"><b>${(avgCov*100).toFixed(0)}%</b><span>avg citation coverage</span></div>
-      ${avgAlign !== null ? `<div class="card"><b>${avgAlign.toFixed(2)}</b><span>avg topic alignment</span></div>` : ""}
-      ${refRows.length ? `<div class="card"><b>${refOk}/${refRows.length}</b><span>injection refused</span></div>` : ""}
-    </div>`;
-  }
-
-  const colHeader = models.length === 1
-    ? `<th>citation</th><th>coverage</th><th>topic align</th>`
-    : `<th>A cite</th><th>A cov</th><th>A align</th><th>B cite</th><th>B cov</th><th>B align</th>`;
-
-  html += `<h3>Per-scenario</h3>
-  <table class="tt"><tr><th>scenario</th><th>turn</th>${colHeader}</tr>`;
-
-  const allRows = results[models[0]];
-  for(const rowA of allRows){
-    const rowB = models[1] ? (results[models[1]] || []).find(r => r.scenario === rowA.scenario && r.turn === rowA.turn) : null;
-    const cell = (row, field, fmt) => {
-      if(!row) return "<td>—</td>";
-      if(row.error) return `<td style="color:var(--bad)" title="${esc(row.error)}">err</td>`;
-      if(row.gate_miss) return `<td style="color:var(--warn)" colspan="${models.length===1?3:1}">gate</td>`;
-      const v = row[field];
-      if(v === null || v === undefined) return "<td>n/a</td>";
-      return `<td>${fmt(v)}</td>`;
-    };
-    if(rowA.expect_refuse){
-      const msg = r => r ? (r.refused_ok ? "✓ refused" : `✗ leaked (${r.conf ? r.conf.toFixed(3) : "?"})`) : "—";
-      html += `<tr><td>${esc(rowA.scenario)}</td><td>${esc(rowA.turn)}</td>
-        <td colspan="${models.length===1?3:6}" style="color:${rowA.refused_ok?"var(--ok)":"var(--bad)"}">${msg(rowA)}${rowB ? " / " + msg(rowB) : ""}</td></tr>`;
-    } else if(rowA.gate_miss){
-      const confA = rowA.conf !== undefined ? rowA.conf.toFixed(3) : "?";
-      const confB = rowB && rowB.conf !== undefined ? rowB.conf.toFixed(3) : null;
-      const confStr = confB ? `A: ${confA} / B: ${confB}` : confA;
-      html += `<tr><td>${esc(rowA.scenario)}</td><td>${esc(rowA.turn)}</td>
-        <td colspan="${models.length===1?3:6}" style="color:var(--warn)" title="This question scored below the scope gate (${gate().toFixed(2)}) and would be refused in the live chat too">below scope gate (conf ${confStr}) — would refuse in chat</td></tr>`;
-    } else {
-      html += `<tr>
-        <td>${esc(rowA.scenario)}</td><td>${esc(rowA.turn)}</td>
-        ${cell(rowA,"citation_ok",v=>v?"✓":"✗")}
-        ${cell(rowA,"coverage",v=>(v*100).toFixed(0)+"%")}
-        ${cell(rowA,"alignment",v=>v.toFixed(2))}
-        ${rowB ? cell(rowB,"citation_ok",v=>v?"✓":"✗") + cell(rowB,"coverage",v=>(v*100).toFixed(0)+"%") + cell(rowB,"alignment",v=>v.toFixed(2)) : ""}
-      </tr>`;
-    }
-  }
-  html += `</table>
-  <p class="small" style="margin-top:12px">Topic alignment is the cosine similarity between the embedded answer and the first passage of the expected document (0–1; higher means the answer stayed on topic). Citation OK requires at least one valid [n] reference with no out-of-range indices.</p>`;
-  genout.innerHTML = html;
-}
-
-function refreshCost(){
-  const el = $("#costline");
-  if(el) el.innerHTML = `${state.gens} generated answers &middot; ${state.tokIn} in / ${state.tokOut} out tokens &middot; <b>$${state.costUSD.toFixed(4)}</b> this session`;
-}
-
-/* ---- tabs ---- */
-function showTab(name){
-  ["chat","how","eval"].forEach(t => {
-    $("#tab-"+t).setAttribute("aria-selected", t === name);
-    $("#pane-"+t).hidden = t !== name;
-  });
-  document.querySelector(".tray").hidden = name !== "chat";
-}
-
-/* =====================================================================
-   EVALUATION HARNESS — runs live, in this browser, on this index
+   EVALUATION HARNESS
    ===================================================================== */
 async function batchEmbed(list){
   const out = [];
   for(let i=0;i<list.length;i+=16) out.push(...await embed(list.slice(i,i+16)));
   return out;
 }
-async function runEval(){
-  const box = $("#evalout");
-  const lexMode = state.mode !== "hybrid";
-  box.innerHTML = '<p class="think">running suites…</p>';
-  const t0 = performance.now();
 
-  // pre-embed every eval query once, then reuse
+async function runEval(){
+  const btn = $("#runeval");
+  if(btn) btn.textContent = "Running…";
+
+  const lexMode = state.mode !== "hybrid";
+  const k = CONFIG.topK;
+  $("#eval-topk").textContent = k;
+
   if(!lexMode){
     const gq = GOLDEN.map(g => g[0]), oq = OOS.map(o => o[0]);
-    const cq = CONV_GOLDEN.map(c => toks(c.follow).length <= 5 ? c.prior + " " + c.follow : c.follow);
-    const gv = await batchEmbed(gq), ov = await batchEmbed(oq), cv = await batchEmbed(cq);
+    const gv = await batchEmbed(gq), ov = await batchEmbed(oq);
     gq.forEach((q,i) => state.qcache.set(q, gv[i]));
     oq.forEach((q,i) => state.qcache.set(q, ov[i]));
-    cq.forEach((q,i) => state.qcache.set(q, cv[i]));
   }
 
-  // --- retrieval suite ---
-  let r1 = 0, r3 = 0, r5 = 0, mrr = 0;
-  const fails = [], confIn = [];
+  // retrieval suite
+  let r1=0, r5=0, mrr=0;
+  const confIn = [], evalRows = [];
   for(const [q, want] of GOLDEN){
-    const r = await retrieve(q, 5);
+    const r = await retrieve(q, k);
     const docs = []; r.hits.forEach(h => { if(!docs.includes(h.p.docId)) docs.push(h.p.docId); });
     const rank = docs.indexOf(want);
     confIn.push([r.conf, rank === 0]);
     if(rank === 0) r1++;
-    if(rank > -1 && rank < 3) r3++;
-    if(rank > -1) r5++;
-    if(rank > -1) mrr += 1/(rank+1); else fails.push([q, want, docs[0]]);
+    if(rank > -1) { r5++; mrr += 1/(rank+1); }
+    evalRows.push({q, want, got: docs[0]||"—", rank, rr: rank > -1 ? 1/(rank+1) : 0, pass: rank > -1 && rank < k});
   }
   const n = GOLDEN.length;
 
-  // --- refusal suite ---
-  let refused = 0; const leaked = []; const confOut = [];
+  // refusal suite
+  let refused=0;
+  const confOut = [], oosRows = [];
   for(const [q, kind] of OOS){
     const r = await retrieve(q, 3);
     confOut.push(r.conf);
-    if(r.conf < gate()) refused++; else leaked.push([q, kind, r.conf.toFixed(3), r.hits[0].p.docId]);
+    const pass = r.conf < gate();
+    if(pass) refused++;
+    oosRows.push({q, kind, conf: r.conf, pass});
   }
 
-  // --- threshold sweep (calibration) ---
-  const sweep = [];
+  // render retrieval table
+  const eTbody = $("#eval-tbody");
+  eTbody.innerHTML = evalRows.map((row, i) => `<tr>
+    <td class="mono" style="color:var(--color-dim)">${String(i+1).padStart(2,"0")}</td>
+    <td style="font-size:13.5px">${esc(row.q)}</td>
+    <td class="mono" style="font-size:11.5px">${esc(row.want)}</td>
+    <td class="mono" style="font-size:11.5px;color:var(--color-dim)">${esc(row.got)}</td>
+    <td class="mono" style="font-size:12px">${row.rank > -1 ? row.rank+1 : ">" + k}</td>
+    <td class="mono" style="font-size:12px">${row.rr.toFixed(2)}</td>
+    <td><span class="tag ${row.pass ? "tag-ok" : "tag-outline"}">${row.pass ? "pass" : "fail"}</span></td>
+  </tr>`).join("");
+
+  // render refusal table
+  const oosTbody = $("#oos-tbody");
+  oosTbody.innerHTML = oosRows.map((row, i) => `<tr>
+    <td class="mono" style="color:var(--color-dim)">${String(i+1).padStart(2,"0")}</td>
+    <td style="font-size:13.5px">${esc(row.q)}</td>
+    <td style="font-size:12.5px;color:var(--color-dim)">${esc(row.kind)}</td>
+    <td class="mono" style="font-size:12px">${row.conf.toFixed(3)}</td>
+    <td><span class="tag ${row.pass ? "tag-ok" : "tag-bad"}">${row.pass ? "refused" : "answered"}</span></td>
+  </tr>`).join("");
+
+  // update stat cards
+  $("#ec-r1-val").textContent = n ? Math.round(r1/n*100) + "%" : "—";
+  $("#ec-r1-note").textContent = n ? r1 + " of " + n + " golden queries" : "not run yet";
+  $("#ec-mrr-val").textContent = n ? (mrr/n).toFixed(2) : "—";
+  $("#ec-ref-val").textContent = OOS.length ? Math.round(refused/OOS.length*100) + "%" : "—";
+  $("#ec-ref-note").textContent = OOS.length ? refused + " of " + OOS.length + " probes refused" : "out-of-scope probes";
+
+  // sweep
   const lo = lexMode ? 0.14 : 0.20, hi = lexMode ? 0.44 : 0.50;
-  for(let t = lo; t <= hi + 1e-5; t += 0.02){
+  const sweepRows = [];
+  for(let t=lo; t<=hi+1e-5; t+=0.02){
     const answered = confIn.filter(c => c[0] >= t);
     const correct = answered.filter(c => c[1]).length;
     const ref = confOut.filter(c => c < t).length;
-    sweep.push([t, correct/n, ref/OOS.length]);
+    sweepRows.push({t, correct, ref, joint:(correct/n + ref/OOS.length)/2});
   }
-  const best = sweep.reduce((a,b) => (b[1]+b[2] > a[1]+a[2] ? b : a));
+  const bestJ = Math.max(...sweepRows.map(s => s.joint));
+  const curG = gate();
+  $("#sweep-tbody").innerHTML = sweepRows.map(s => `<tr>
+    <td class="mono" style="${s.joint===bestJ ? "color:var(--color-accent);font-weight:600" : "color:var(--color-dim)"}">${s.t.toFixed(2)}</td>
+    <td class="mono">${s.correct}/${n}</td>
+    <td class="mono">${s.ref}/${OOS.length}</td>
+    <td class="mono" style="${s.joint===bestJ ? "color:var(--color-accent);font-weight:600" : ""}">${(s.joint*100).toFixed(0)}%</td>
+  </tr>`).join("");
 
-  // --- multi-turn retrieval suite ---
-  let convR1 = 0, convR3 = 0;
-  const convFails = [];
-  for(const c of CONV_GOLDEN){
-    const retrievalQ = toks(c.follow).length <= 5 ? c.prior + " " + c.follow : c.follow;
-    const r = await retrieve(retrievalQ, 5);
-    const docs = []; r.hits.forEach(h => { if(!docs.includes(h.p.docId)) docs.push(h.p.docId); });
-    const rank = docs.indexOf(c.expect);
-    if(rank === 0) convR1++;
-    if(rank > -1 && rank < 3) convR3++;
-    if(rank !== 0) convFails.push([c.label, c.expect, docs[0] || "—"]);
-  }
-  const cn = CONV_GOLDEN.length;
-  const convHTML = `
-    <div class="cards">
-      <div class="card"><b>${(convR1/cn*100).toFixed(0)}%</b><span>Recall@1 &middot; ${convR1}/${cn}</span></div>
-      <div class="card"><b>${(convR3/cn*100).toFixed(0)}%</b><span>Recall@3</span></div>
-    </div>
-    ${convFails.length
-      ? `<table class="tt"><tr><th>case</th><th>expected</th><th>got</th></tr>${
-          convFails.map(f => `<tr><td>${esc(f[0])}</td><td>${esc(f[1])}</td><td>${esc(f[2])}</td></tr>`).join("")
-        }</table>`
-      : '<p class="small">None: every follow-up query still retrieved its target document in the top 3.</p>'}`;
-
-  const ms = Math.round(performance.now()-t0);
-  box.innerHTML = `
-  ${lexMode ? '<p class="flag">The embedding model did not load, so this ran against BM25 lexical retrieval alone — the degraded path. Dense numbers would be better and the gate separates worse here. Reported as measured, not as intended.</p>' : ""}
-  <div class="cards">
-    <div class="card"><b>${(r1/n*100).toFixed(1)}%</b><span>Recall@1 &middot; ${r1}/${n}</span></div>
-    <div class="card"><b>${(r3/n*100).toFixed(1)}%</b><span>Recall@3</span></div>
-    <div class="card"><b>${(mrr/n).toFixed(3)}</b><span>MRR</span></div>
-    <div class="card"><b>${(refused/OOS.length*100).toFixed(0)}%</b><span>Refusal on out-of-scope &middot; ${refused}/${OOS.length}</span></div>
-  </div>
-  <p class="small">Suite: ${n} paraphrased recruiter questions written to <i>not</i> match the corpus wording, plus ${OOS.length} out-of-scope probes including four prompt-injection attempts. Ran in ${ms} ms in this browser, against this index. Retrieval is deterministic, so run-to-run variance here is zero by construction — the noise floor in this system lives in the generation layer, not the retrieval layer.</p>
-
-  <h3>Failures — retrieval</h3>
-  ${fails.length ? `<table class="tt"><tr><th>query</th><th>expected</th><th>got</th></tr>${
-    fails.map(f => `<tr><td>${esc(f[0])}</td><td>${esc(f[1])}</td><td>${esc(f[2]||"—")}</td></tr>`).join("")}</table>`
-    : '<p class="small">None: every golden query retrieved its target document inside the top 5.</p>'}
-
-  <h3>Failures — scope gate</h3>
-  ${leaked.length ? `<table class="tt"><tr><th>probe</th><th>type</th><th>confidence</th><th>would have used</th></tr>${
-    leaked.map(l => `<tr><td>${esc(l[0])}</td><td>${esc(l[1])}</td><td>${l[2]}</td><td>${esc(l[3])}</td></tr>`).join("")}</table>`
-    : '<p class="small">None: every out-of-scope probe scored below the gate and was refused without a model call, at zero cost.</p>'}
-
-  <h3>Threshold calibration</h3>
-  <p class="small">The gate is a trade-off, not a constant. Sweeping it shows what each setting costs. Current gate: <b>${gate().toFixed(2)}</b> (${state.mode} mode). Joint optimum on this suite: <b>${best[0].toFixed(2)}</b>.</p>
-  <table class="tt"><tr><th>gate</th><th>answered correctly (in-scope)</th><th>refused (out-of-scope)</th></tr>
-  ${sweep.map(s => `<tr${Math.abs(s[0]-gate())<0.01?' class="hl"':""}><td>${s[0].toFixed(2)}</td><td>${(s[1]*100).toFixed(1)}%</td><td>${(s[2]*100).toFixed(0)}%</td></tr>`).join("")}</table>
-
-  <p class="small">Retune the gate and re-run: <input id="thr" type="number" step="0.02" min="0.05" max="0.9" value="${gate().toFixed(2)}" style="width:5.5em"> <button class="go" id="setthr">apply &amp; re-run</button></p>
-
-  <h3>Multi-turn retrieval — follow-up coherence</h3>
-  <p class="small">Each case simulates what the chat does: short follow-ups (≤5 words) are prefixed with the previous question before retrieval. The suite checks that the expected document still ranks first — directly testing the drift failure where "tell me more" retrieves general bio instead of staying on topic.</p>
-  ${convHTML}
-
-  <h3>What this does not measure</h3>
-  <ul class="small">
-    <li>Generation quality. Use the <b>Generation quality eval</b> below to score citation faithfulness and topic alignment on scripted conversations.</li>
-    <li>Corpus coverage. A question can be legitimately about Elroy and simply not be in the corpus; the gate refuses it, which is correct behaviour but reads as a miss to a visitor.</li>
-    <li>The golden sets are small and written by the same person who wrote the corpus. That is a real bias, and the honest fix is external labels.</li>
-  </ul>`;
-  const st = document.getElementById("setthr");
-  if(st) st.onclick = () => {
-    const v = parseFloat(document.getElementById("thr").value);
-    if(!isNaN(v)){ if(state.mode === "hybrid") CONFIG.scopeThreshold = v; else CONFIG.lexThreshold = v; runEval(); }
-  };
+  if(btn) btn.textContent = "Run the suite again";
 }
 
-/* =====================================================================
-   BOOT
-   ===================================================================== */
+/* ---- tabs & boot ---- */
+$("#tab-chat").onclick  = () => showTab("chat");
+$("#tab-trace").onclick = () => showTab("trace");
+$("#tab-eval").onclick  = () => showTab("eval");
+$("#runeval").onclick   = () => runEval();
+
+const submitBtn = $("#submit-btn");
+if(submitBtn) submitBtn.onclick = () => ask($("#q").value);
+const qInput = $("#q");
+if(qInput) qInput.onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); ask(qInput.value); } };
+
 async function boot(){
   $("#pname").innerHTML = PROFILE.name;
   $("#ptag").innerHTML = PROFILE.tagline;
-  const fm = $("#fmail"); fm.href = "mailto:" + PROFILE.email; fm.textContent = PROFILE.email;
+  const fm = $("#fmail"); if(fm){ fm.href = "mailto:" + PROFILE.email; fm.textContent = PROFILE.email; }
+
+  // hide trace & eval panels initially
+  $("#pane-trace").style.display = "none";
+  $("#pane-eval").style.display = "none";
 
   state.passages = buildPassages();
   state.bm25 = buildBM25(state.passages);
-  $("#idxsize").textContent = state.passages.length;
 
-  bubble(`<p>Hi there! I'm a conversational assistant built by Elroy to help you get to know him — his experience, projects, skills, and what he's looking for next.</p>
-          <p>Ask me anything. Every answer comes straight from what Elroy wrote about himself, and I'll show you exactly where each answer came from. If I don't have it, I'll tell you that too.</p>`, false);
+  const intro = appendBotMsg("Hi there", "");
+  intro.querySelector(".msg-body").innerHTML = `
+    <p style="margin:0 0 11px;font-size:15.5px;line-height:1.62">I'm a conversational assistant built by Elroy to help you get to know him — his experience, projects, skills, and what he's looking for next.</p>
+    <p style="margin:0;font-size:15.5px;line-height:1.62">Ask me anything. Every answer comes straight from what Elroy wrote about himself, and I'll show you exactly where each answer came from. If I don't have it, I'll tell you that too.</p>`;
   renderSuggest(null);
 
   try{
@@ -1391,29 +1558,21 @@ async function boot(){
     state.vecs = await batchEmbed(state.passages.map(p => p.dense));
     state.mode = "hybrid";
     const ms = Math.round(performance.now()-t0);
-    setStatus(`hybrid retrieval ready &middot; ${state.backend} &middot; ${state.passages.length} passages embedded in ${ms} ms &middot; ${CONFIG.generatorUrl ? "generation on" : "retrieval-only"}`, "ok");
+    setStatus("hybrid retrieval ready · generation " + (CONFIG.generatorUrl ? "on" : "off"), "ok");
+    setStatusDetails(
+      state.backend ? state.backend.split(" · ").slice(1).join(" · ") : "",
+      state.passages.length + " passages embedded in " + ms + " ms"
+    );
   } catch(e){
     state.mode = "lexical";
-    setStatus("embedding model unavailable — degraded to BM25 lexical retrieval. The agent still works; the dense suite cannot run.", "warn");
+    setStatus("embedding model unavailable — degraded to BM25 lexical retrieval", "warn");
   }
   state.ready = true;
-  refreshCost();
+  updateSessionSidebar();
 }
 
-/* Debug handle — also what the smoke test drives. Everything the app does is
-   reachable from here, so you can retune and re-measure from the console:
-     askElroy.CONFIG.scopeThreshold = 0.40
-     await askElroy.retrieve("does he need a visa")                          */
-
-$("#f").onsubmit = e => { e.preventDefault(); ask($("#q").value); };
-$("#tab-chat").onclick = () => showTab("chat");
-$("#tab-how").onclick  = () => showTab("how");
-$("#tab-eval").onclick = () => showTab("eval");
-$("#runeval").onclick  = () => runEval();
-$("#rungeneval").onclick = () => runGenEval();
-["modelA","modelB"].forEach(id => { const el = document.getElementById(id); if(el) el.oninput = updateGenCostEst; });
-window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, runGenEval, ask };
-updateGenCostEst();
+window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask,
+  get busy(){ return busy; } };
 boot();
 </script>
 </body>

@@ -6,162 +6,327 @@
 <title>Ask about Elroy Galbraith — a grounded RAG agent</title>
 <meta name="description" content="A retrieval-augmented agent that answers recruiter questions about Elroy Galbraith, with retrieved passages, a full trace, and a live evaluation suite attached.">
 <style>
-:root{--bg:#0e1116;--panel:#151a22;--panel2:#1b2029;--line:#262d38;--ink:#e8ecf2;--dim:#98a4b4;
- --accent:#5eb3ff;--soft:#16334f;--me:#22303f;--ok:#5fd39a;--warn:#e8b64c;--bad:#ff7a7a;--r:14px}
-@media (prefers-color-scheme:light){:root{--bg:#f6f7f9;--panel:#fff;--panel2:#f0f2f6;--line:#e2e6ec;
- --ink:#131820;--dim:#5b6673;--accent:#0b62c4;--soft:#e4effc;--me:#e6edf6;--ok:#12805a;--warn:#8a6100;--bad:#b3261e}}
-*{box-sizing:border-box}html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
-.wrap{max-width:860px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;padding:0 16px}
-header{padding:26px 0 0}
-h1{font-size:1.32rem;margin:0 0 3px;letter-spacing:-.01em}
-h2{font-size:1.05rem;margin:26px 0 8px}
-h3{font-size:.92rem;margin:22px 0 6px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em}
-.sub{color:var(--dim);font-size:.92rem;margin:0}
-.status{font-size:.78rem;color:var(--dim);margin:10px 0 0;padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel2)}
-.status.ok{color:var(--ok)}.status.warn{color:var(--warn)}
-.tabs{display:flex;gap:4px;margin:14px 0 0;border-bottom:1px solid var(--line)}
-.tabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--dim);font:inherit;font-size:.9rem;padding:9px 13px;cursor:pointer}
-.tabs button[aria-selected=true]{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
-main{flex:1;padding:16px 0 8px}
-.msg{display:flex;margin:0 0 14px;gap:10px}
-.msg .bubble{padding:12px 15px;border-radius:var(--r);max-width:88%;border:1px solid var(--line);background:var(--panel);animation:pop .18s ease-out}
-@keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-.msg.me{justify-content:flex-end}.msg.me .bubble{background:var(--me);border-color:transparent}
-.bubble p{margin:0 0 10px}.bubble p:last-child,.bubble ul:last-child,.bubble ol:last-child,.bubble details:last-child{margin-bottom:0}
-.bubble ul,.bubble ol{margin:0 0 10px;padding-left:20px}.bubble li{margin:0 0 6px}
-.bubble a{color:var(--accent)}
-sup.cite{color:var(--accent);cursor:help;font-weight:600}
-.flag{color:var(--bad);font-size:.85rem;border-left:3px solid var(--bad);padding-left:9px}
-.modeflag{color:var(--dim);font-size:.79rem;border-top:1px dashed var(--line);padding-top:8px}
-.think{color:var(--dim);font-style:italic}
-details.trace,details.src{margin:10px 0 0;border-top:1px dashed var(--line);padding-top:8px}
-details summary{cursor:pointer;color:var(--dim);font-size:.78rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-.tracebody{margin-top:8px;font-size:.76rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-.kv{display:flex;justify-content:space-between;gap:12px;padding:2px 0;color:var(--dim)}
-.kv b{color:var(--ink);font-weight:600}
-table.tt{width:100%;border-collapse:collapse;margin:8px 0;font-size:.75rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-table.tt th,table.tt td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top}
-table.tt th{color:var(--dim);font-weight:600}
-table.tt tr.hl{background:var(--soft)}
-.srcp{font-size:.79rem;color:var(--dim);margin:8px 0}
-.qhead{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:0 0 8px;font-weight:600}
-.chips{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 0}
-.chip{background:transparent;color:var(--accent);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font:inherit;font-size:.83rem;cursor:pointer;text-align:left;line-height:1.3}
-.chip:hover{background:var(--soft);border-color:var(--accent)}
-.chip.cat{color:var(--ink);font-weight:600}
-.chip.cat[aria-pressed=true]{background:var(--soft);border-color:var(--accent);color:var(--accent)}
-.tray{position:sticky;bottom:0;background:var(--bg);padding:10px 0 16px;border-top:1px solid var(--line)}
-form{display:flex;gap:8px}
-input[type=text]{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:12px 14px;font:inherit;min-width:0}
-input[type=text]:focus{outline:2px solid var(--accent);outline-offset:1px}
-button.send{background:var(--accent);color:#fff;border:0;border-radius:12px;padding:0 18px;font:inherit;font-weight:600;cursor:pointer}
-button.go{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:9px 16px;font:inherit;font-weight:600;cursor:pointer}
-.cards{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
-.card{flex:1 1 150px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
-.card b{display:block;font-size:1.5rem;letter-spacing:-.02em}
-.card span{font-size:.74rem;color:var(--dim)}
-.small{font-size:.83rem;color:var(--dim)}
-.pane p{margin:0 0 11px}
-.pane ul{padding-left:20px}.pane li{margin:0 0 7px}
-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85em;background:var(--panel2);padding:1px 5px;border-radius:5px}
-footer{color:var(--dim);font-size:.77rem;padding:0 0 26px;border-top:1px solid var(--line);margin-top:8px;padding-top:12px}
-footer a{color:var(--dim)}
+:root{
+  --color-bg:#0e1117;--color-panel:#151b24;--color-text:#e8ecf2;
+  --color-accent:#5b9aff;--color-accent-700:#3d7de8;--color-accent-800:#2460c4;
+  --color-accent-900:#1a3d80;--color-divider:#262d38;--color-dim:#98a4b4;
+  --color-ok:#5fd39a;--color-warn:#e8b64c;--color-bad:#ff7a7a;
+  --font-body:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --font-mono:ui-monospace,"SFMono-Regular",Menlo,monospace
+}
+@media(prefers-color-scheme:light){:root{
+  --color-bg:#f6f7fa;--color-panel:#fff;--color-text:#131820;
+  --color-accent:#0b62c4;--color-accent-700:#0952a8;--color-accent-800:#073d80;
+  --color-accent-900:#052a58;--color-divider:#dde2ea;--color-dim:#5b6673;
+  --color-ok:#12805a;--color-warn:#8a6100;--color-bad:#b3261e
+}}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{background:var(--color-bg);color:var(--color-text);font-family:var(--font-body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.container{max-width:1200px;margin:0 auto;padding:0 40px}
+
+/* --- blueprint containers --- */
+.blueprint{position:relative;border:1px solid var(--color-divider)}
+.corner{position:absolute;width:7px;height:7px;border-color:var(--color-accent);border-style:solid}
+.corner.tl{top:-1px;left:-1px;border-width:2px 0 0 2px}
+.corner.tr{top:-1px;right:-1px;border-width:2px 2px 0 0}
+.corner.bl{bottom:-1px;left:-1px;border-width:0 0 2px 2px}
+.corner.br{bottom:-1px;right:-1px;border-width:0 2px 2px 0}
+
+/* --- tabs --- */
+.tabbtn{appearance:none;background:transparent;border:0;border-bottom:2px solid transparent;
+  padding:11px 2px;margin-right:30px;cursor:pointer;
+  font-family:var(--font-body);font-weight:600;font-size:17px;letter-spacing:.02em;
+  color:color-mix(in srgb,var(--color-text) 50%,transparent)}
+.tabbtn:hover{color:var(--color-text)}
+.tabbtn[aria-current="true"]{color:var(--color-text);border-bottom-color:var(--color-accent)}
+
+/* --- chip buttons --- */
+.chip{appearance:none;cursor:pointer;font-family:var(--font-body);font-size:13px;
+  line-height:1.25;padding:6px 11px;border:1px solid var(--color-divider);border-radius:0;
+  background:transparent;color:var(--color-accent-800);color:var(--color-accent);text-align:left}
+.chip:hover{background:color-mix(in srgb,var(--color-accent) 12%,transparent);border-color:var(--color-accent)}
+.chip.cat{font-weight:600;font-size:14px;color:var(--color-text)}
+.chip[data-on="1"]{background:var(--color-accent);border-color:var(--color-accent);color:var(--color-bg)}
+
+/* --- tags --- */
+.tag{display:inline-block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  padding:3px 8px;font-weight:600}
+.tag-outline{border:1px solid var(--color-divider);color:var(--color-dim)}
+.tag-neutral{border:1px solid var(--color-divider);background:color-mix(in srgb,var(--color-text) 8%,transparent);color:var(--color-text)}
+.tag-accent{border:1px solid var(--color-accent);background:color-mix(in srgb,var(--color-accent) 15%,transparent);color:var(--color-accent)}
+.tag-ok{border:1px solid var(--color-ok);background:color-mix(in srgb,var(--color-ok) 12%,transparent);color:var(--color-ok)}
+.tag-bad{border:1px solid var(--color-bad);background:color-mix(in srgb,var(--color-bad) 12%,transparent);color:var(--color-bad)}
+
+/* --- buttons --- */
+.btn{appearance:none;cursor:pointer;font-family:var(--font-body);font-weight:600;border:0;border-radius:0}
+.btn-primary{background:var(--color-accent);color:#fff}
+.btn-primary:hover{opacity:.9}
+.btn-ghost{background:transparent;color:var(--color-dim);font-size:13px;padding:6px 0;border:0}
+.btn-ghost:hover{color:var(--color-text)}
+
+/* --- table --- */
+.table{width:100%;border-collapse:collapse}
+.table th{text-align:left;padding:6px 10px;border-bottom:1px solid var(--color-divider);
+  font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-dim);font-weight:600}
+.table td{padding:9px 10px;border-bottom:1px solid var(--color-divider);vertical-align:top}
+.table tr:last-child td{border-bottom:0}
+
+/* --- input --- */
+.input{width:100%;background:var(--color-bg);border:1px solid var(--color-divider);
+  color:var(--color-text);padding:12px 14px;font-family:var(--font-body);font-size:15px;
+  outline:none;border-radius:0}
+.input:focus{border-color:var(--color-accent)}
+
+/* --- streaming caret --- */
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.caret{display:inline-block;width:7px;height:15px;background:var(--color-accent);
+  vertical-align:-2px;animation:blink .9s steps(1) infinite}
+
+/* --- eyebrow / label text --- */
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent-700);margin-bottom:8px}
+.section-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-accent)}
+
+/* --- layout panels --- */
+#pane-trace,#pane-eval{display:none}
+#pane-trace.active,#pane-eval.active{display:block}
+
+/* --- small utility --- */
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-.visitor-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:0 0 10px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s}
-.visitor-card:hover:not(.open){background:var(--soft)}
-.visitor-icon{font-size:1.2rem;flex-shrink:0}
-.visitor-prompt{font-size:.88rem}
-.visitor-opt{font-size:.8rem;color:var(--dim)}
-.visitor-card.open{cursor:default;flex-direction:column;align-items:stretch}
-.vf-fields{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px}
-.vf-fields input[type=text]{flex:1 1 120px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 10px;font:inherit;font-size:.83rem;min-width:0}
-.vf-actions{display:flex;gap:7px}
 </style>
 </head>
 <body>
-<div class="wrap">
-<header>
-  <h1 id="pname"></h1>
-  <p class="sub" id="ptag"></p>
-  <p class="status" id="status">starting…</p>
-  <nav class="tabs" role="tablist">
-    <button id="tab-chat" role="tab" aria-selected="true">Ask</button>
-    <button id="tab-how"  role="tab" aria-selected="false">How this works</button>
-    <button id="tab-eval" role="tab" aria-selected="false">Evaluation</button>
-  </nav>
-</header>
+<div style="min-height:100vh">
+<div class="container" style="padding-top:40px">
 
-<main>
-  <section id="pane-chat" role="tabpanel">
-    <div id="log" role="log" aria-live="polite" aria-label="Conversation"></div>
-    <div id="suggest"></div>
-  </section>
-
-  <section id="pane-how" role="tabpanel" class="pane" hidden>
-    <h2>What this is</h2>
-    <p>A retrieval-augmented agent over a fixed corpus that Elroy wrote about his own work. It exists for two reasons: to answer a recruiter's questions at 11pm without him, and to be the sample rather than the description — a hiring manager can read the trace on any answer and see exactly how it was produced.</p>
-
-    <h2>Pipeline</h2>
-    <ul>
-      <li><b>Chunk.</b> The corpus is split at paragraph and list-item level into <b id="idxsize">…</b> passages, each carrying its parent document and section title. Small chunks retrieve precisely; the title travels with them so context is not lost.</li>
-      <li><b>Embed.</b> <code>all-MiniLM-L6-v2</code> runs <i>in your browser</i> via ONNX Runtime — WebGPU where the browser has it, WASM where it does not, an older runtime where that fails, and BM25 alone if all three do. The index is built on page load, so nothing is precomputed on a server and no text you type leaves the page during retrieval.</li>
-      <li><b>Retrieve, hybrid.</b> BM25 lexical scoring and dense cosine similarity run independently, then fuse by reciprocal rank. Dense alone misses acronyms and proper nouns; lexical alone misses paraphrase. Fusion needs no tuned weight, which is why it is used here rather than a weighted blend.</li>
-      <li><b>Gate.</b> If the best dense similarity falls under the scope threshold, the agent refuses <i>before</i> any model call. Out-of-scope questions therefore cost nothing and cannot be answered incorrectly.</li>
-      <li><b>Generate.</b> The question and the retrieved passages go to a stateless proxy that holds the API key and calls Claude Haiku with a system prompt that forbids any claim not present in the passages, and requires numbered citations. The response streams back token by token.</li>
-      <li><b>Verify.</b> Every generated answer is parsed for citations. Invalid citation indices and uncited claims are flagged in the response itself, not hidden.</li>
-    </ul>
-
-    <h2>Failure behaviour</h2>
-    <p>Three degradation steps, all visible rather than silent. If the embedding model will not load, retrieval falls back to BM25 alone and the status bar says so. If the generator is unreachable or the session cost cap is hit, the agent returns the retrieved source passage verbatim instead of paraphrasing it. If a question falls below the scope gate, it is refused with an email address rather than answered.</p>
-
-    <h2>Honest limitations</h2>
-    <ul>
-      <li>The corpus is small and self-authored. The agent is only as accurate as what Elroy wrote in it, and it has no way to know when he was too generous with himself.</li>
-      <li>The evaluation suite scores retrieval and refusal. It does not score whether the generated prose is good writing.</li>
-      <li>A first page load downloads roughly 25&nbsp;MB of model weights and takes a few seconds. A production version would precompute the index and ship vectors instead — this version builds it live because watching it build is part of the point.</li>
-      <li>The scope gate is calibrated against a suite Elroy also wrote. See the sweep in the Evaluation tab for what other settings would cost.</li>
-    </ul>
-
-    <h2>Stack</h2>
-    <p>One HTML file, no build step, no framework. <code>transformers.js</code> for in-browser embeddings, BM25 and RRF written by hand, a Cloudflare Worker for the key-holding proxy, Claude Haiku for generation.</p>
-  </section>
-
-  <section id="pane-eval" role="tabpanel" class="pane" hidden>
-    <h2>Does this agent actually work?</h2>
-    <p>Building the system is the common skill. Building the instrument that says whether it works is the rarer one, so it ships in the same page. Press the button: the suite runs live, in this browser, against the index that just answered your questions. Nothing below is a hardcoded number.</p>
-    <p><button class="go" id="runeval">Run the evaluation suite</button></p>
-    <div id="evalout" class="small"><p>Not run yet.</p></div>
-
-    <h3>Generation quality</h3>
-    <p class="small">Runs scripted multi-turn conversations through the live generator. Scores each answer on citation faithfulness and topic alignment (embedding cosine to the expected passage). Uses real model calls — cost is shown before running. Leave Model B blank to skip A/B.</p>
-    <div style="display:flex;flex-wrap:wrap;gap:10px;margin:10px 0 14px">
-      <label class="small" style="flex:1 1 200px">Model A<br>
-        <input type="text" id="modelA" style="width:100%;margin-top:4px;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 10px;font:inherit;font-size:.83rem" value="nvidia/nemotron-3-super-120b-a12b:free">
-      </label>
-      <label class="small" style="flex:1 1 200px">Model B (optional)<br>
-        <input type="text" id="modelB" style="width:100%;margin-top:4px;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 10px;font:inherit;font-size:.83rem" placeholder="e.g. anthropic/claude-haiku-4-5">
-      </label>
+  <!-- header -->
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end;padding-bottom:20px">
+    <div>
+      <div class="eyebrow">ask-elroy — a grounded RAG agent over a corpus he wrote</div>
+      <h1 id="pname" style="font-size:54px;margin:0 0 4px;letter-spacing:-.02em;font-weight:700"></h1>
+      <div id="ptag" style="font-size:17px;color:color-mix(in srgb,var(--color-text) 68%,transparent)"></div>
     </div>
-    <p><button class="go" id="rungeneval">Run generation quality eval</button> <span class="small" id="genestcost" style="color:var(--dim)"></span></p>
-    <div id="genout" class="small"><p>Not run yet.</p></div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:12px">
+      <img src="profile.jpeg" alt="Elroy Galbraith" style="width:80px;height:80px;object-fit:cover;object-position:center top;border:1px solid var(--color-divider);display:block">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:340px">
+        <span class="tag tag-outline">no login</span>
+        <span class="tag tag-neutral">retrieval in your browser</span>
+        <span class="tag tag-accent">key held by the worker</span>
+      </div>
+    </div>
+  </div>
 
-    <h3>Session cost</h3>
-    <p class="small" id="costline">no generated answers yet</p>
-  </section>
-</main>
+  <!-- status strip -->
+  <div class="blueprint" style="display:flex;flex-wrap:wrap;gap:6px 24px;padding:11px 16px;margin-bottom:26px;font-size:12px" id="status-strip">
+    <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+    <span id="status-dot" style="display:inline-flex;align-items:center;gap:7px;color:var(--color-dim);font-weight:500">
+      <span id="status-indicator" style="width:7px;height:7px;background:var(--color-warn);display:inline-block"></span>
+      <span id="status-text">starting…</span>
+    </span>
+    <span class="mono" id="status-model" style="color:color-mix(in srgb,var(--color-text) 58%,transparent)"></span>
+    <span class="mono" id="status-index" style="color:color-mix(in srgb,var(--color-text) 58%,transparent)"></span>
+  </div>
 
-<div class="tray">
-  <form id="f" autocomplete="off">
-    <label class="sr" for="q">Ask a question</label>
-    <input type="text" id="q" placeholder="Ask about his work, his stack, work authorization, what he wants next…">
-    <button class="send" type="submit">Ask</button>
-  </form>
+  <!-- tabs -->
+  <div style="display:flex;border-bottom:1px solid var(--color-divider);margin-bottom:28px">
+    <button class="tabbtn" id="tab-chat" aria-current="true">Chat</button>
+    <button class="tabbtn" id="tab-trace" aria-current="false">Trace</button>
+    <button class="tabbtn" id="tab-eval" aria-current="false">Eval</button>
+    <span style="margin-left:auto;align-self:center;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb,var(--color-text) 45%,transparent)" id="tab-hint">grounded answers only</span>
+  </div>
+
+  <!-- ===== CHAT PANEL ===== -->
+  <div id="pane-chat" style="display:grid;grid-template-columns:minmax(0,1fr) 292px;gap:38px;align-items:start;padding-bottom:200px">
+    <div style="min-width:0">
+
+      <!-- read-me -->
+      <div class="blueprint" style="padding:20px 22px;margin-bottom:28px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div class="section-label" style="margin-bottom:9px">Read me first</div>
+        <p style="margin:0 0 8px;font-size:15.5px;max-width:64ch;text-wrap:pretty">I answer recruiter questions about Elroy — his experience, how he works, his stack, and what he wants next — from a fixed corpus he wrote about his own work.</p>
+        <p style="margin:0;font-size:15.5px;max-width:64ch;text-wrap:pretty;color:color-mix(in srgb,var(--color-text) 70%,transparent)">Every answer carries the passages it was built from and a full trace. Below the scope gate I refuse before any model call, so an out-of-scope question costs nothing and cannot be answered wrongly.</p>
+      </div>
+
+      <!-- message log -->
+      <div id="log" role="log" aria-live="polite" aria-label="Conversation" style="display:flex;flex-direction:column;gap:28px"></div>
+
+      <!-- suggestions -->
+      <div id="suggest" style="margin-top:32px"></div>
+    </div>
+
+    <!-- sidebar -->
+    <aside style="position:sticky;top:24px;display:grid;gap:18px">
+      <div class="blueprint" style="padding:16px" id="sidebar-last">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div class="section-label" style="margin-bottom:11px">Last question</div>
+        <div class="mono" style="display:grid;gap:6px;font-size:12px">
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">mode</span><span id="sb-mode">—</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">confidence</span><span id="sb-conf">—</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">gate</span><span id="sb-gate">—</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">decision</span><span id="sb-decision">—</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">retrieve</span><span id="sb-retrieve">—</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">cost</span><span id="sb-cost">—</span></div>
+        </div>
+      </div>
+      <div class="blueprint" style="padding:16px" id="sidebar-session">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div class="section-label" style="margin-bottom:11px">Session</div>
+        <div class="mono" style="display:grid;gap:6px;font-size:12px">
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">answers</span><span id="sb-gens">0 / 40</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">tokens</span><span id="sb-toks">0 / 0</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">spend</span><span id="sb-spend">$0.00000</span></div>
+        </div>
+        <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Nothing you type is stored. No session state on the server; a refresh clears the thread.</p>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ===== TRACE PANEL ===== -->
+  <div id="pane-trace" style="padding-bottom:80px">
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:38px;align-items:start">
+      <div style="min-width:0">
+        <h3 style="margin:0 0 4px;font-size:20px">Retrieval trace</h3>
+        <p style="font-size:14px;color:var(--color-dim);max-width:66ch">BM25 and dense cosine score the corpus independently, then fuse by reciprocal rank. Both signals are kept apart here so you can see which one carried the result — dense alone misses acronyms, lexical alone misses paraphrase.</p>
+
+        <div class="blueprint" style="padding:14px 16px;margin:20px 0 24px" id="trace-query-box">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim);margin-bottom:6px">Query</div>
+          <div id="trace-query" style="font-size:18px;font-weight:600">No question asked yet — ask one in the Chat tab.</div>
+          <div class="mono" id="trace-terms" style="margin-top:8px;font-size:11.5px;color:var(--color-dim)"></div>
+        </div>
+
+        <table class="table" id="trace-table">
+          <thead><tr>
+            <th style="width:34px">#</th>
+            <th>Passage</th>
+            <th style="width:96px">cos / bm25</th>
+            <th style="width:150px">RRF</th>
+            <th style="width:66px">Used</th>
+          </tr></thead>
+          <tbody id="trace-tbody"></tbody>
+        </table>
+      </div>
+
+      <div style="display:grid;gap:18px">
+        <div class="blueprint" style="padding:16px">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div class="section-label" style="margin-bottom:13px">Pipeline</div>
+          <div style="display:grid;gap:11px" id="trace-pipeline">
+            <!-- filled by JS -->
+          </div>
+        </div>
+        <div class="blueprint" style="padding:16px">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div class="section-label" style="margin-bottom:11px">Gate &amp; grounding</div>
+          <div class="mono" style="display:grid;gap:6px;font-size:12px" id="trace-gate">
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">max cosine</span><span id="tg-conf">—</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">scope gate</span><span id="tg-gate">—</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">decision</span><span id="tg-decision">—</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">citations</span><span id="tg-citations">—</span></div>
+            <div style="display:flex;justify-content:space-between;border-top:1px solid var(--color-divider);padding-top:6px"><span style="color:var(--color-dim)">tokens</span><span id="tg-tokens">—</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">cost</span><span id="tg-cost">—</span></div>
+          </div>
+          <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Invalid citation indices and uncited claims are flagged in the answer itself, never hidden. Below the gate the agent refuses before the model call, so the refusal is free.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== EVAL PANEL ===== -->
+  <div id="pane-eval" style="padding-bottom:80px">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:24px">
+      <div>
+        <h3 style="margin:0 0 4px;font-size:20px">Does this agent actually work?</h3>
+        <p style="margin:0;font-size:14.5px;color:var(--color-dim);max-width:66ch;text-wrap:pretty">Building the system is the common skill; building the instrument that says whether it works is the rarer one, so it ships in the same page. The suite runs live, in this browser, against the index that just answered your questions. Nothing below is a hardcoded number.</p>
+      </div>
+      <button class="btn btn-primary blueprint" style="padding:10px 22px;font-size:15px;white-space:nowrap" id="runeval">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        Run the evaluation suite
+      </button>
+    </div>
+
+    <!-- stat cards -->
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:30px" id="eval-cards">
+      <div class="blueprint" style="padding:14px 16px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)" id="ec-r1-label">Retrieval hit@5</div>
+        <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px" id="ec-r1-val">—</div>
+        <div style="font-size:11.5px;color:var(--color-dim)" id="ec-r1-note">not run yet</div>
+      </div>
+      <div class="blueprint" style="padding:14px 16px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)">MRR</div>
+        <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px" id="ec-mrr-val">—</div>
+        <div style="font-size:11.5px;color:var(--color-dim)">mean reciprocal rank</div>
+      </div>
+      <div class="blueprint" style="padding:14px 16px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)">Refusal</div>
+        <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px" id="ec-ref-val">—</div>
+        <div style="font-size:11.5px;color:var(--color-dim)" id="ec-ref-note">out-of-scope probes</div>
+      </div>
+      <div class="blueprint" style="padding:14px 16px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)">Suite cost</div>
+        <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px">$0.00</div>
+        <div style="font-size:11.5px;color:var(--color-dim)">retrieval only — no model calls</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:38px;align-items:start">
+      <div style="min-width:0">
+        <h4 style="margin:0 0 4px;font-size:15px;font-weight:700">Retrieval suite — paraphrased recruiter questions</h4>
+        <p style="margin:0 0 14px;font-size:13px;color:var(--color-dim);max-width:64ch">Written the way a recruiter types them, not the way the canonical questions are worded. The expected document must surface in top-<span id="eval-topk">5</span>.</p>
+        <table class="table" id="eval-table">
+          <thead><tr>
+            <th style="width:30px">#</th><th>Query</th><th style="width:130px">Expected</th>
+            <th style="width:130px">Top hit</th><th style="width:52px">Rank</th>
+            <th style="width:56px">RR</th><th style="width:70px">Result</th>
+          </tr></thead>
+          <tbody id="eval-tbody"><tr><td colspan="7" style="color:var(--color-dim);font-size:13px">Not run yet.</td></tr></tbody>
+        </table>
+
+        <h4 style="margin:32px 0 4px;font-size:15px;font-weight:700">Refusal suite — out-of-scope probes</h4>
+        <p style="margin:0 0 14px;font-size:13px;color:var(--color-dim);max-width:64ch">General knowledge, private data, off-task requests and prompt injection. A pass means the gate fired before any model call.</p>
+        <table class="table" id="oos-table">
+          <thead><tr>
+            <th style="width:30px">#</th><th>Probe</th><th style="width:150px">Class</th>
+            <th style="width:110px">Confidence</th><th style="width:100px">Result</th>
+          </tr></thead>
+          <tbody id="oos-tbody"><tr><td colspan="5" style="color:var(--color-dim);font-size:13px">Not run yet.</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- sweep panel -->
+      <div class="blueprint" style="padding:16px;position:sticky;top:24px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div class="section-label" style="margin-bottom:6px">Scope-gate sweep</div>
+        <p style="margin:0 0 12px;font-size:11.5px;line-height:1.5;color:var(--color-dim)">What each setting costs you: in-scope questions answered against out-of-scope probes refused. The joint optimum is marked.</p>
+        <table class="table" style="font-size:12px" id="sweep-table">
+          <thead><tr><th style="width:52px">gate</th><th>answered</th><th>refused</th><th style="width:44px">joint</th></tr></thead>
+          <tbody id="sweep-tbody"><tr><td colspan="4" style="color:var(--color-dim)">not run yet</td></tr></tbody>
+        </table>
+        <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Two gates exist in the real build: <span class="mono">scopeThreshold</span> for hybrid, <span class="mono">lexThreshold</span> for the BM25-only fallback.</p>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+</div><!-- /min-height -->
+
+<!-- fixed input tray -->
+<div id="input-tray" style="position:fixed;left:0;right:0;bottom:0;background:linear-gradient(to bottom,transparent,var(--color-bg) 34%);padding:36px 40px 22px;pointer-events:none">
+  <div style="max-width:1200px;margin:0 auto;pointer-events:auto">
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;max-width:860px">
+      <label class="sr" for="q">Ask a question</label>
+      <input class="input" type="text" id="q" placeholder="Ask about his work, his stack, work authorization, what he wants next…" autocomplete="off">
+      <button class="btn btn-primary blueprint" style="padding:0 28px;font-size:15px" id="submit-btn">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        Ask
+      </button>
+    </div>
+    <div style="max-width:860px;margin-top:9px;font-size:11.5px;color:var(--color-dim)">Built by Elroy Galbraith as a working sample · retrieval and embedding run in your browser, generation is proxied so no key is exposed · <a id="fmail" href="#" style="color:var(--color-dim)"></a></div>
+  </div>
 </div>
 
-<footer>
-  Built by Elroy Galbraith as a working sample. Retrieval and embedding run in your browser; generation is proxied so no key is exposed. &middot;
-  <a id="fmail" href="#"></a>
-</footer>
-</div>
 <script>
