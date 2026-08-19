@@ -142,6 +142,17 @@ a:`<p>Regularly, and usually because the measurement work surfaced them rather t
 a:`<p>Yes. Before Japan I was a Senior Economist at the Consumer Affairs Commission in Kingston, Jamaica, from 2013 to 2018. I led national research using econometric modelling that fed into National Consumer Policy, and ran commodity price monitoring that produced benchmarks for regulators.</p>
 <p>That period is why I am comfortable in front of non-technical stakeholders and why I think about financial data as economics rather than as columns. It also shaped the habit of stating uncertainty explicitly — policy audiences punish false precision faster than engineering audiences do.</p>`},
 
+{cat:"Experience", q:"What is your career timeline?", k:"timeline history chronological progression career path years experience total when start began how long worked",
+a:`<p>In order:</p>
+<ul>
+<li><b>2011–2013 —</b> M.Sc., University of the West Indies. Economic modelling and social data analysis.</li>
+<li><b>2013–2018 —</b> Senior Economist, Consumer Affairs Commission, Kingston, Jamaica. Econometric research feeding national consumer policy; commodity price monitoring for regulators.</li>
+<li><b>2019–2022 —</b> Ph.D., Information Science and Technology, Hokkaido University, Japan. Complex systems and big-data decision-making.</li>
+<li><b>2022–present —</b> Data Science Team Lead, Yoii (Tokyo). LLM decision engine for SME underwriting; Japanese-language customer-support agent.</li>
+<li><b>2022–present —</b> Chief Data Officer, Aeon Technology Solutions (concurrent). Financial question-answering over Jamaica Stock Exchange data; real-estate valuation pipeline; filing extraction.</li>
+</ul>
+<p>Five years as an economist, then a research doctorate, then hands-on AI engineering in fintech — the two threads meet in financial ML, which is where I do my best work.</p>`},
+
 {cat:"Experience", q:"What is the largest team or codebase you have worked in?", k:"team size codebase scale collaboration contributors big large company",
 a:`<p>The Yoii underwriting platform: a 15-person codebase where I am a top-2 contributor with roughly 1,100 commits. The support-agent programme was a two-engineer team with a clean ownership split — I held the AI layer, my colleague held infrastructure and channel integration.</p>
 <p>Neither is FAANG scale. What they are is full-ownership scale: I have been the person accountable for whether a system works, not one contributor to a component someone else integrates.</p>`},
@@ -269,7 +280,7 @@ a:`<p>Email is best: <a href="mailto:elroy.galbraith@gmail.com">elroy.galbraith@
 <p>Ask by email for my CV or phone number and I will send them. If you have a role in mind, include the answer to one question and you will get a fast reply: <i>who owns taking a working system to production and maintaining it long-term?</i></p>`},
 
 {cat:"Fit & logistics", q:"Are you a real person or is this an AI?", k:"real ai bot chatbot who built this human are you elroy fake generated automated how does this work",
-a:`<p>I am a real person; this page is not me. It is a small assistant Elroy built, and it answers from a fixed set of answers he wrote himself. No language model is generating text here, so nothing on this page can invent a claim about him.</p>
-<p>That is deliberate. He builds evaluation systems for LLM products for a living, which is a good reason not to point an ungoverned one at his own reputation.</p>
+a:`<p>I am a real person; this page is not me. It is a small assistant Elroy built using a language model constrained to passages he wrote and approved. The model can rephrase and cite those passages, but it cannot add facts, invent a job, or state anything not already written there.</p>
+<p>That constraint is deliberate. He builds evaluation systems for LLM products for a living, which is a good reason not to point an ungoverned one at his own reputation.</p>
 <p>If the answer you need is not here, email him: <a href="mailto:elroy.galbraith@gmail.com">elroy.galbraith@gmail.com</a></p>`}
 ];

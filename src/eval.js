@@ -2,7 +2,7 @@
 /* ---------- STABLE DOC IDs (index-aligned with BANK) ---------- */
 const IDS = ["intro","differentiator","role-wanted","filter-question",
 "yoii-current","odin","odin-eval","negative-results","support-agent","conv-eval",
-"aeon","jse-chatbot","extraction-pipeline","silent-bugs","economist","team-scale",
+"aeon","jse-chatbot","extraction-pipeline","silent-bugs","economist","career-timeline","team-scale",
 "ic-vs-manager","how-decide","risk-guardrails","communication","weaknesses","publications",
 "stack","finance-domain","education","languages","production-llm",
 "location","visa","salary","why-move","five-years","company-fit","start-date","contact","is-this-ai"];
@@ -26,6 +26,9 @@ const GOLDEN = [
  ["experience with ocr and pdf extraction","extraction-pipeline"],
  ["give an example of a data quality problem he caught","silent-bugs"],
  ["did he work before moving into ai","economist"],
+ ["walk me through his career chronologically","career-timeline"],
+ ["how many years of experience does he have","career-timeline"],
+ ["what did he do before he moved to japan","economist"],
  ["how big were the teams he worked with","team-scale"],
  ["is he a hands on engineer or a people manager","ic-vs-manager"],
  ["what is his process for deciding whether to ship","how-decide"],
