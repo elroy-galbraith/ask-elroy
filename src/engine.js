@@ -247,6 +247,71 @@ async function generate(question, hits, onToken, history, model){
   return { text, usage };
 }
 
+async function generateFit(jdText, onToken, visitorName, visitorCo){
+  const passages = state.passages.map((p, i) => ({ n: i + 1, title: p.title, text: p.text }));
+  const body = {
+    jd_text: String(jdText).slice(0, 4000),
+    passages,
+    session_id: state.sessionId,
+    visitor_name: visitorName || null,
+    visitor_co: visitorCo || null
+  };
+  const res = await fetch(CONFIG.generatorUrl + "/fit", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  if(!res.ok) throw new Error("fit generator returned " + res.status);
+
+  const reader = res.body.getReader(), dec = new TextDecoder();
+  let buf = "", text = "", usage = { input_tokens: 0, output_tokens: 0 };
+  let inThink = false, thinkBuf = "";
+  for(;;){
+    const { done, value } = await reader.read();
+    if(done) break;
+    buf += dec.decode(value, { stream: true });
+    const parts = buf.split("\n\n"); buf = parts.pop();
+    for(const block of parts){
+      const line = block.split("\n").find(l => l.startsWith("data:"));
+      if(!line) continue;
+      let ev; try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
+      const delta = ev.choices && ev.choices[0] && ev.choices[0].delta;
+      if(delta && delta.content){
+        let chunk = delta.content;
+        if(!inThink){
+          const s = chunk.indexOf("<think>");
+          if(s === -1){
+            text += chunk; onToken(chunk);
+          } else {
+            const before = chunk.slice(0, s);
+            if(before){ text += before; onToken(before); }
+            inThink = true; thinkBuf = chunk.slice(s + 7);
+            const e = thinkBuf.indexOf("</think>");
+            if(e !== -1){
+              const after = thinkBuf.slice(e + 8);
+              thinkBuf = ""; inThink = false;
+              if(after){ text += after; onToken(after); }
+            }
+          }
+        } else {
+          thinkBuf += chunk;
+          const e = thinkBuf.indexOf("</think>");
+          if(e !== -1){
+            const after = thinkBuf.slice(e + 8);
+            thinkBuf = ""; inThink = false;
+            if(after){ text += after; onToken(after); }
+          }
+        }
+      }
+      if(ev.usage){
+        usage.input_tokens = ev.usage.prompt_tokens || 0;
+        usage.output_tokens = ev.usage.completion_tokens || 0;
+      }
+    }
+  }
+  return { text, usage };
+}
+
 /* ---------------- 6. groundedness check ---------------- */
 function checkGrounding(text, hits){
   const cited = new Set((text.match(/\[(\d+)\]/g) || []).map(m => parseInt(m.slice(1,-1),10)));
