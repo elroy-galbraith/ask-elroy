@@ -272,14 +272,32 @@ async function callJSON(env, model, system, user) {
   return { json: parseLooseJSON(text), usage: data.usage || null };
 }
 
-function parseLooseJSON(text) {
+export function parseLooseJSON(text) {
   const s = String(text || "");
   const fenced = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const body = fenced ? fenced[1] : s;
   const start = body.search(/[[{]/);
   if (start === -1) throw new Error("no JSON found");
-  const end = Math.max(body.lastIndexOf("}"), body.lastIndexOf("]"));
-  if (end < start) throw new Error("no JSON found");
+  // Scan for the first *complete* balanced JSON value from `start`, tracking
+  // string context so brackets inside strings don't count. Anything after the
+  // value (trailing prose, a second block, a stray brace) is ignored — models
+  // routinely append a sentence after the JSON despite being told not to.
+  let depth = 0, inStr = false, esc = false, end = -1;
+  for (let i = start; i < body.length; i++) {
+    const ch = body[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{" || ch === "[") depth++;
+    else if (ch === "}" || ch === "]") {
+      if (--depth === 0) { end = i; break; }
+    }
+  }
+  if (end === -1) throw new Error("no complete JSON value");
   return JSON.parse(body.slice(start, end + 1));
 }
 
