@@ -6,16 +6,29 @@ const $ = s => document.querySelector(s);
 
 /* ---- tabs ---- */
 function showTab(name){
-  ["fit","chat","trace","eval"].forEach(t => {
+  if(name === "trace"){ showTab("advanced"); showAdvancedTab("trace"); return; }
+  if(name === "eval"){ showTab("advanced"); showAdvancedTab("eval"); return; }
+  ["fit","chat","advanced"].forEach(t => {
     const btn = $("#tab-"+t);
     if(btn) btn.setAttribute("aria-current", t === name ? "true" : "false");
     const panel = $("#pane-"+t);
-    if(panel) panel.style.display = t === name ? (t === "chat" ? "grid" : "block") : "none";
+    if(!panel) return;
+    panel.style.display = (t === name) ? (t === "chat" ? "grid" : "block") : "none";
   });
   $("#input-tray").style.display = name === "chat" ? "" : "none";
-  const hints = {fit:"paste a job description to check the fit", chat:"grounded answers only", trace:"why these passages", eval:"runs live in this browser"};
+  const hints = {fit:"paste a job description to check the fit", chat:"grounded answers only", advanced:"retrieval internals · eval suite"};
   $("#tab-hint").textContent = hints[name] || "";
 }
+
+function showAdvancedTab(name){
+  ["trace","eval"].forEach(t => {
+    const btn = $("#advtab-"+t);
+    if(btn) btn.setAttribute("aria-current", t === name ? "true" : "false");
+    const panel = $("#pane-"+t);
+    if(panel) panel.style.display = t === name ? "block" : "none";
+  });
+}
+window.showAdvancedTab = showAdvancedTab;
 
 /* ---- eval sub-tabs ---- */
 function showEvalTab(name){
@@ -733,10 +746,14 @@ function refreshCost(){
 }
 
 /* ---- tabs & boot ---- */
-$("#tab-fit").onclick     = () => showTab("fit");
-$("#tab-chat").onclick    = () => showTab("chat");
-$("#tab-trace").onclick   = () => showTab("trace");
-$("#tab-eval").onclick    = () => showTab("eval");
+$("#tab-chat").onclick     = () => showTab("chat");
+$("#tab-fit").onclick      = () => showTab("fit");
+$("#tab-advanced").onclick = () => showTab("advanced");
+
+const heroChatBtn = $("#hero-chat");
+if(heroChatBtn) heroChatBtn.onclick = () => showTab("chat");
+const heroFitBtn = $("#hero-fit");
+if(heroFitBtn) heroFitBtn.onclick = () => showTab("fit");
 
 const fitBtn = $("#fit-btn");
 if(fitBtn) fitBtn.onclick = () => submitFit($("#fit-jd").value);
@@ -770,7 +787,7 @@ async function boot(){
   if(qEl){ qEl.disabled = true; qEl.placeholder = "Loading embedding model…"; }
   if(sbEl) sbEl.disabled = true;
 
-  showTab("fit");
+  showTab(null);
 
   state.passages = buildPassages();
   state.bm25 = buildBM25(state.passages);
@@ -805,6 +822,8 @@ async function boot(){
   if(qEl){ qEl.disabled = false; qEl.placeholder = "Ask about his work, his stack, work authorization, what he wants next…"; }
   if(sbEl) sbEl.disabled = false;
   dismissOverlay();
+  const strip = $("#status-strip");
+  if(strip) strip.style.display = "none";
   state.ready = true;
   updateSessionSidebar();
   updateGenCostEst();
