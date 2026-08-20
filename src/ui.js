@@ -750,6 +750,11 @@ $("#tab-chat").onclick     = () => showTab("chat");
 $("#tab-fit").onclick      = () => showTab("fit");
 $("#tab-advanced").onclick = () => showTab("advanced");
 
+const heroChatBtn = $("#hero-chat");
+if(heroChatBtn) heroChatBtn.onclick = () => showTab("chat");
+const heroFitBtn = $("#hero-fit");
+if(heroFitBtn) heroFitBtn.onclick = () => showTab("fit");
+
 const fitBtn = $("#fit-btn");
 if(fitBtn) fitBtn.onclick = () => submitFit($("#fit-jd").value);
 const fitJd = $("#fit-jd");
