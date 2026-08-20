@@ -147,7 +147,7 @@ function appendBotMsg(label, meta){
       <span style="font-weight:600;font-size:15px;letter-spacing:.05em;text-transform:uppercase">${esc(label)}</span>
       <span class="mono" style="font-size:11px;color:var(--color-dim)">${esc(meta)}</span>
     </div>
-    <div style="border-left:2px solid var(--color-accent);padding-left:17px;max-width:72ch">
+    <div style="border-left:2px solid var(--color-accent);padding-left:17px;max-width:86ch">
       <div class="msg-body"></div>
     </div>
     <div class="msg-cites" style="margin-top:16px"></div>
