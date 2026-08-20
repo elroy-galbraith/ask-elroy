@@ -323,48 +323,62 @@ async function submitFit(jdText){
   appendUserMsg("How well does this role match Elroy's background?");
   const msgEl = appendBotMsg("Fit assessment", "assessing…");
 
-  if(CONFIG.generatorUrl){
-    setStreamingCaret(msgEl, true);
-    let acc = "";
-    const fakeHits = state.passages.map(p => ({ p }));
-    try{
-      const out = await generateFit(text, tok => {
-        acc += tok;
-        renderAnswerIntoMsg(msgEl, acc, fakeHits);
-        setStreamingCaret(msgEl, true);
-        msgEl.scrollIntoView({ behavior:"smooth", block:"nearest" });
-      }, visitor ? visitor.name : null, visitor ? visitor.company : null);
-
-      setStreamingCaret(msgEl, false);
-      renderAnswerIntoMsg(msgEl, out.text, fakeHits);
-
-      const ground = checkGrounding(out.text, fakeHits);
-      if(!ground.ok){
-        const flag = document.createElement("p");
-        flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
-        flag.textContent = "Groundedness flag: this assessment did not cite its sources cleanly. Treat it with suspicion.";
-        msgEl.querySelector(".msg-body").appendChild(flag);
-      }
-
-      state.gens++;
-      if(out.usage){
-        state.tokIn += out.usage.input_tokens;
-        state.tokOut += out.usage.output_tokens;
-        state.costUSD += (out.usage.input_tokens/1e6)*CONFIG.price.in + (out.usage.output_tokens/1e6)*CONFIG.price.out;
-        updateSessionSidebar();
-      }
-      const metaEl = msgEl.querySelector(".mono");
-      if(metaEl && out.usage){
-        const cost = (out.usage.input_tokens/1e6)*CONFIG.price.in + (out.usage.output_tokens/1e6)*CONFIG.price.out;
-        metaEl.textContent = state.passages.length + " passages · $" + cost.toFixed(5);
-      }
-    } catch(err){
-      setStreamingCaret(msgEl, false);
-      msgEl.querySelector(".msg-body").innerHTML = `<p style="color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px">The fit check failed (${esc(err.message)}). Try again or email <a href="mailto:${esc(PROFILE.email)}" style="color:var(--color-accent)">${esc(PROFILE.email)}</a> directly.</p>`;
-    }
-  } else {
+  if(!CONFIG.generatorUrl){
     setStreamingCaret(msgEl, false);
     msgEl.querySelector(".msg-body").innerHTML = `<p style="color:var(--color-dim);font-size:.85rem">No generator configured — fit assessment requires the live worker.</p>`;
+    busy = false; return;
+  }
+
+  const vName = visitor ? visitor.name : null;
+  const vCo   = visitor ? visitor.company : null;
+
+  // 1. Structured score panel — additive; its failure must never break the narrative.
+  let panel = null;
+  try {
+    panel = await generateScore(text, vName, vCo);
+    renderFitPanel(msgEl, panel);
+  } catch(err){
+    panel = null; // degrade to narrative-only
+  }
+
+  // 2. Narrative, streamed and kept consistent with the panel.
+  setStreamingCaret(msgEl, true);
+  let acc = "";
+  const fakeHits = state.passages.map(p => ({ p }));
+  try{
+    const out = await generateFit(text, tok => {
+      acc += tok;
+      renderAnswerIntoMsg(msgEl, acc, fakeHits);
+      setStreamingCaret(msgEl, true);
+      msgEl.scrollIntoView({ behavior:"smooth", block:"nearest" });
+    }, vName, vCo, panel);
+
+    setStreamingCaret(msgEl, false);
+    renderAnswerIntoMsg(msgEl, out.text, fakeHits);
+
+    const ground = checkGrounding(out.text, fakeHits);
+    if(!ground.ok){
+      const flag = document.createElement("p");
+      flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
+      flag.textContent = "Groundedness flag: this assessment did not cite its sources cleanly. Treat it with suspicion.";
+      msgEl.querySelector(".msg-body").appendChild(flag);
+    }
+
+    state.gens++;
+    if(out.usage){
+      state.tokIn += out.usage.input_tokens;
+      state.tokOut += out.usage.output_tokens;
+      state.costUSD += (out.usage.input_tokens/1e6)*CONFIG.price.in + (out.usage.output_tokens/1e6)*CONFIG.price.out;
+      updateSessionSidebar();
+    }
+    const metaEl = msgEl.querySelector(".mono");
+    if(metaEl && out.usage){
+      const cost = (out.usage.input_tokens/1e6)*CONFIG.price.in + (out.usage.output_tokens/1e6)*CONFIG.price.out;
+      metaEl.textContent = state.passages.length + " passages · $" + cost.toFixed(5);
+    }
+  } catch(err){
+    setStreamingCaret(msgEl, false);
+    msgEl.querySelector(".msg-body").innerHTML = `<p style="color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px">The fit check failed (${esc(err.message)}). Try again or email <a href="mailto:${esc(PROFILE.email)}" style="color:var(--color-accent)">${esc(PROFILE.email)}</a> directly.</p>`;
   }
   busy = false;
 }
