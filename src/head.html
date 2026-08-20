@@ -87,9 +87,6 @@ body{background:var(--color-bg);color:var(--color-text);font-family:var(--font-b
 .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent-700);margin-bottom:8px}
 .section-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-accent)}
 
-/* --- layout panels --- */
-#pane-trace,#pane-eval{display:none}
-#pane-trace.active,#pane-eval.active{display:block}
 
 /* --- details toggle --- */
 details summary::-webkit-details-marker{display:none}
@@ -170,10 +167,9 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
 
   <!-- tabs -->
   <div style="display:flex;border-bottom:1px solid var(--color-divider);margin-bottom:28px">
-    <button class="tabbtn" id="tab-fit" aria-current="false">Fit check</button>
     <button class="tabbtn" id="tab-chat" aria-current="false">Chat</button>
-    <button class="tabbtn" id="tab-trace" aria-current="false">Trace</button>
-    <button class="tabbtn" id="tab-eval" aria-current="false">Eval</button>
+    <button class="tabbtn" id="tab-fit" aria-current="false">Fit check</button>
+    <button class="tabbtn" id="tab-advanced" aria-current="false">Advanced</button>
     <span style="margin-left:auto;align-self:center;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb,var(--color-text) 45%,transparent)" id="tab-hint"></span>
   </div>
 
@@ -243,8 +239,16 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
     </aside>
   </div>
 
-  <!-- ===== TRACE PANEL ===== -->
-  <div id="pane-trace" style="padding-bottom:80px">
+  <!-- ===== ADVANCED PANEL ===== -->
+  <div id="pane-advanced" style="display:none">
+
+    <!-- Advanced sub-tab bar -->
+    <div style="display:flex;border-bottom:1px solid var(--color-divider);margin-bottom:28px">
+      <button class="tabbtn" id="advtab-trace" aria-current="true" onclick="showAdvancedTab('trace')">Trace</button>
+      <button class="tabbtn" id="advtab-eval" aria-current="false" onclick="showAdvancedTab('eval')">Evaluation</button>
+    </div>
+
+    <div id="pane-trace" style="display:block;padding-bottom:80px">
     <div id="trace-grid" style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:38px;align-items:start">
       <div style="min-width:0">
         <h3 style="margin:0 0 4px;font-size:20px">Retrieval trace</h3>
@@ -292,10 +296,9 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
         </div>
       </div>
     </div>
-  </div>
+    </div>
 
-  <!-- ===== EVAL PANEL ===== -->
-  <div id="pane-eval" style="padding-bottom:80px">
+    <div id="pane-eval" style="display:none;padding-bottom:80px">
     <div style="margin-bottom:20px">
       <h3 style="margin:0 0 4px;font-size:20px">Does this agent actually work?</h3>
       <p style="margin:0;font-size:14.5px;color:var(--color-dim);max-width:66ch;text-wrap:pretty">Building the system is the common skill; building the instrument that says whether it works is the rarer one, so it ships in the same page. The suite runs live, in this browser, against the index that just answered your questions. Nothing below is a hardcoded number.</p>
@@ -410,6 +413,8 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
     </div>
 
   </div>
+
+  </div><!-- /pane-advanced -->
 
 </div><!-- /container -->
 </div><!-- /min-height -->
