@@ -71,6 +71,10 @@ await p.route('**/fit', route => route.fulfill({
   body: 'data: {"choices":[{"delta":{"content":"Strong matches: solid overlap [1]."}}]}\n\ndata: [DONE]\n\n',
 }));
 
+// A failed live generator call earlier in the run clears CONFIG.generatorUrl, which
+// would short-circuit the fit paths. The routes above answer it, so put it back.
+await p.evaluate(() => { window.askElroy.CONFIG.generatorUrl ||= 'https://stub.invalid'; });
+
 await p.click('#tab-fit');
 await p.fill('#fit-jd', 'Senior Go engineer building RAG systems; must lead a small team.');
 await p.click('#fit-btn');
@@ -79,6 +83,55 @@ const tierTxt = (await p.textContent('.fit-tier')) || '';
 const rowCount = await p.locator('.fit-row').count();
 console.log('fit panel :', `tier "${tierTxt.trim()}"  |  ${rowCount} criteria`);
 if (!/fit/i.test(tierTxt) || rowCount < 1) { errs.push('FIT PANEL: tier or rows missing'); }
+
+// ---- Pasting a JD into the chat box offers the fit check (never auto-routes) ----
+const JD = 'About the role: we are hiring a senior backend engineer to own our ' +
+  'retrieval platform. What you will do: build and operate Go services on GCP, ' +
+  'lead a small team, and take responsibility for the RAG pipeline end to end. ' +
+  'Requirements: 8+ years of experience, strong Go, production LLM work. ' +
+  'Nice-to-have: Kubernetes. Full-time, remote-friendly, competitive compensation.';
+
+const clf = await p.evaluate(jd => ({
+  jd:      window.askElroy.looksLikeJobDescription(jd),
+  short:   window.askElroy.looksLikeJobDescription('what is his go experience'),
+  ramble:  window.askElroy.looksLikeJobDescription(
+    'I have been reading about how you built this thing and I am curious how the ' +
+    'retrieval side holds up, because most of these demos fall over the moment you ' +
+    'ask them something slightly off the beaten path, so tell me honestly how you ' +
+    'evaluate it and what you measured when you were tuning the gate thresholds.'),
+}), JD);
+console.log('jd detect :', `jd ${clf.jd}  |  short-q ${clf.short}  |  long-ramble ${clf.ramble}`);
+if (!clf.jd || clf.short || clf.ramble) errs.push('JD DETECT: ' + JSON.stringify(clf));
+
+await p.click('#tab-chat');
+await p.fill('#q', JD);
+await p.click('#submit-btn');
+await p.waitForTimeout(300);
+const offered = await p.locator('#log', { hasText: 'That looks like a job description' }).count();
+console.log('jd offer  :', offered ? 'offered' : 'MISSING');
+if (!offered) errs.push('JD OFFER: no offer shown for a pasted job description');
+
+await p.getByRole('button', { name: 'Run the fit check' }).click();
+await p.waitForFunction(() => !window.askElroy.busy, null, { timeout: 30000 }).catch(() => {});
+await p.waitForTimeout(200);
+const ranFit = await p.locator('#log', { hasText: 'Strong matches' }).count();
+console.log('jd accept :', ranFit ? 'fit check ran' : 'FIT CHECK DID NOT RUN');
+if (!ranFit) errs.push('JD OFFER: accepting the offer did not run the fit check');
+
+// Declining the offer must fall through to the ordinary ask loop, not the fit check.
+const fitsBefore = await p.locator('#log', { hasText: 'Fit assessment' }).count();
+const logBefore  = await p.locator('#log > div').count();
+await p.fill('#q', JD);
+await p.click('#submit-btn');
+await p.waitForTimeout(300);
+await p.getByRole('button', { name: 'No, ask it as a question' }).last().click();
+await p.waitForFunction(() => !window.askElroy.busy, null, { timeout: 30000 }).catch(() => {});
+await p.waitForTimeout(200);
+const fitsAfter = await p.locator('#log', { hasText: 'Fit assessment' }).count();
+const logAfter  = await p.locator('#log > div').count();
+console.log('jd decline:', `log ${logBefore}→${logAfter}, fit assessments ${fitsBefore}→${fitsAfter}`);
+if (fitsAfter !== fitsBefore) errs.push('JD OFFER: declining still ran the fit check');
+if (logAfter <= logBefore + 1) errs.push('JD OFFER: declining did not run the ask loop');
 
 console.log('js errors :', errs.length ? errs : 'none');
 await b.close();

@@ -48,6 +48,8 @@ body{background:var(--color-bg);color:var(--color-text);font-family:var(--font-b
 .chip:hover{background:color-mix(in srgb,var(--color-accent) 12%,transparent);border-color:var(--color-accent)}
 .chip.cat{font-weight:600;font-size:14px;color:var(--color-text)}
 .chip[data-on="1"]{background:var(--color-accent);border-color:var(--color-accent);color:var(--color-bg)}
+.chip:disabled{cursor:default;color:var(--color-dim);border-color:var(--color-divider);opacity:.6}
+.chip:disabled:hover{background:transparent;border-color:var(--color-divider)}
 
 /* --- tags --- */
 .tag{display:inline-block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
