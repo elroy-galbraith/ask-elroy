@@ -830,6 +830,6 @@ async function boot(){
   updateGenCostEst();
 }
 
-window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit,
+window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore,
   get busy(){ return busy; } };
 boot();

@@ -247,14 +247,15 @@ async function generate(question, hits, onToken, history, model){
   return { text, usage };
 }
 
-async function generateFit(jdText, onToken, visitorName, visitorCo){
+async function generateFit(jdText, onToken, visitorName, visitorCo, assessment){
   const passages = state.passages.map((p, i) => ({ n: i + 1, title: p.title, text: p.text }));
   const body = {
     jd_text: String(jdText).slice(0, 4000),
     passages,
     session_id: state.sessionId,
     visitor_name: visitorName || null,
-    visitor_co: visitorCo || null
+    visitor_co: visitorCo || null,
+    assessment: assessment || null
   };
   const res = await fetch(CONFIG.generatorUrl + "/fit", {
     method: "POST",
@@ -309,6 +310,23 @@ async function generateFit(jdText, onToken, visitorName, visitorCo){
     }
   }
   return { text, usage };
+}
+
+async function generateScore(jdText, visitorName, visitorCo){
+  const passages = state.passages.map((p, i) => ({ n: i + 1, title: p.title, text: p.text }));
+  const res = await fetch(CONFIG.generatorUrl + "/fit/score", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      jd_text: String(jdText).slice(0, 4000),
+      passages,
+      session_id: state.sessionId,
+      visitor_name: visitorName || null,
+      visitor_co: visitorCo || null
+    })
+  });
+  if(!res.ok) throw new Error("score generator returned " + res.status);
+  return await res.json();
 }
 
 /* ---------------- 6. groundedness check ---------------- */
