@@ -170,9 +170,12 @@ function renderFitPanel(panel){
   const aside = $("#chat-aside");
   const pane = $("#pane-chat");
   if(!panelEl || !aside || !pane) return;
-  // open the sidebar column — the scorecard stays on screen as the thread scrolls
-  aside.style.display = "block";
-  pane.style.gridTemplateColumns = "minmax(0,1fr) 320px";
+  // the scorecard takes the rail from the visitor card and stays on screen as the thread scrolls
+  fitShown = true;
+  const slot = $("#chat-visitor");
+  if(slot){ slot.innerHTML = ""; slot.style.display = "none"; }
+  panelEl.style.display = "block";
+  syncAside();
   const rows = (panel.criteria || []).map(c => {
     const lo = Math.min(c.skeptic, c.advocate), hi = Math.max(c.skeptic, c.advocate);
     const badges = [
@@ -260,10 +263,34 @@ let visitorDismissed = false;
 let visitor = null;
 const sugEl = $("#suggest");
 
+/* The right rail holds one thing at a time: the visitor card while it is still
+   worth asking who is here, then the fit scorecard once a check has run. */
+let fitShown = false;
+
+function syncAside(){
+  const aside = $("#chat-aside"), pane = $("#pane-chat"), slot = $("#chat-visitor");
+  if(!aside || !pane) return;
+  const open = fitShown || (slot && slot.style.display !== "none");
+  aside.style.display = open ? "block" : "none";
+  pane.style.gridTemplateColumns = open ? "minmax(0,1fr) 320px" : "minmax(0,1fr)";
+}
+
+function mountVisitorCard(){
+  const slot = $("#chat-visitor");
+  if(!slot) return;
+  slot.innerHTML = "";
+  if(visitorDismissed || fitShown){ slot.style.display = "none"; syncAside(); return; }
+  slot.appendChild(renderVisitorCard());
+  slot.style.display = "block";
+  syncAside();
+}
+
 function renderVisitorCard(){
   const card = document.createElement("div");
-  card.style.cssText = "background:var(--color-panel);border:1px solid var(--color-divider);padding:12px 16px;margin-bottom:14px;cursor:pointer;display:flex;align-items:center;gap:10px";
-  card.innerHTML = `<span style="font-size:1.1rem;flex-shrink:0">👋</span><span><span style="font-size:.88rem">Before you start — who are you?</span> <span style="font-size:.8rem;color:var(--color-dim)">(optional — skip and ask anything)</span></span>`;
+  card.style.cssText = "background:var(--color-panel);border:1px solid var(--color-divider);padding:13px 15px;cursor:pointer;display:flex;align-items:flex-start;gap:10px";
+  card.innerHTML = `<span style="font-size:1.05rem;flex-shrink:0;line-height:1.35">👋</span><span style="min-width:0">
+    <span style="font-size:.88rem;display:block;line-height:1.45">Before you start — who are you?</span>
+    <span style="font-size:.78rem;color:var(--color-dim);display:block;margin-top:3px">Optional — skip and ask anything</span></span>`;
   function openForm(){ showVisitorForm(card); }
   card.onclick = openForm;
   return card;
@@ -289,13 +316,14 @@ function showVisitorForm(card){
     const name = card.querySelector("#vf-name").value.trim();
     visitor = { name, company: card.querySelector("#vf-co").value.trim(), role: card.querySelector("#vf-role").value.trim() };
     visitorDismissed = true;
+    mountVisitorCard();
     renderSuggest(null);
     if(name){
       const d = appendBotMsg("Hey there", "");
       d.querySelector(".msg-body").innerHTML = `<p style="margin:0;font-size:15.5px;line-height:1.62">Thanks, ${esc(name)}! What would you like to know?</p>`;
     }
   };
-  card.querySelector("#vf-skip").onclick = () => { visitorDismissed = true; renderSuggest(null); };
+  card.querySelector("#vf-skip").onclick = () => { visitorDismissed = true; mountVisitorCard(); renderSuggest(null); };
   setTimeout(() => card.querySelector("#vf-name").focus(), 0);
 }
 
@@ -305,6 +333,7 @@ async function submitFit(jdText){
   busy = true;
   showTab("chat");
   visitorDismissed = true;
+  mountVisitorCard();   // clear the rail; the scorecard claims it below
   appendUserMsg("How well does this role match Elroy's background?");
   const msgEl = appendBotMsg("Fit assessment", "assessing…");
 
@@ -371,7 +400,6 @@ async function submitFit(jdText){
 
 function renderSuggest(list, heading){
   sugEl.innerHTML = "";
-  if(!visitorDismissed) sugEl.appendChild(renderVisitorCard());
 
   const h = document.createElement("div");
   h.style.cssText = "font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim);margin-bottom:11px";
@@ -834,6 +862,7 @@ async function boot(){
 
   // the greeting lives in the hero now — the thread opens straight on the suggestions
   renderSuggest(null);
+  mountVisitorCard();
 
   try{
     setBootMsg("Loading embedding model…");

@@ -444,19 +444,6 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
   <div id="pane-chat" style="display:grid;grid-template-columns:minmax(0,1fr);gap:38px;align-items:start;padding-bottom:200px">
     <div style="min-width:0">
 
-      <!-- read-me -->
-      <details class="blueprint" style="padding:16px 22px;margin-bottom:28px">
-        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-        <summary style="list-style:none;cursor:pointer;display:flex;align-items:center;gap:9px;user-select:none">
-          <span style="display:inline-block;color:var(--color-accent);font-size:10px;line-height:1">▶</span>
-          <span class="section-label" style="margin:0">Read me first</span>
-        </summary>
-        <div style="margin-top:12px">
-          <p style="margin:0 0 8px;font-size:15.5px;max-width:78ch;text-wrap:pretty">I answer recruiter questions about Elroy — his experience, how he works, his stack, and what he wants next — from a fixed corpus he wrote about his own work.</p>
-          <p style="margin:0;font-size:15.5px;max-width:78ch;text-wrap:pretty;color:color-mix(in srgb,var(--color-text) 70%,transparent)">Every answer carries the passages it was built from and a full trace. Below the scope gate I refuse before any model call, so an out-of-scope question costs nothing and cannot be answered wrongly.</p>
-        </div>
-      </details>
-
       <!-- message log -->
       <div id="log" role="log" aria-live="polite" aria-label="Conversation" style="display:flex;flex-direction:column;gap:28px"></div>
 
@@ -464,9 +451,10 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
       <div id="suggest" style="margin-top:32px"></div>
     </div>
 
-    <!-- fit slot — empty until a fit check runs, then the scorecard stays here beside the thread -->
+    <!-- right rail — visitor card until a fit check runs, then the scorecard takes the slot -->
     <aside id="chat-aside" style="display:none;position:sticky;top:24px">
-      <div class="fit-panel" id="chat-fit-panel"></div>
+      <div id="chat-visitor" style="display:none"></div>
+      <div class="fit-panel" id="chat-fit-panel" style="display:none"></div>
     </aside>
   </div>
 
