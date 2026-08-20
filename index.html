@@ -48,6 +48,8 @@ body{background:var(--color-bg);color:var(--color-text);font-family:var(--font-b
 .chip:hover{background:color-mix(in srgb,var(--color-accent) 12%,transparent);border-color:var(--color-accent)}
 .chip.cat{font-weight:600;font-size:14px;color:var(--color-text)}
 .chip[data-on="1"]{background:var(--color-accent);border-color:var(--color-accent);color:var(--color-bg)}
+.chip:disabled{cursor:default;color:var(--color-dim);border-color:var(--color-divider);opacity:.6}
+.chip:disabled:hover{background:transparent;border-color:var(--color-divider)}
 
 /* --- tags --- */
 .tag{display:inline-block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
@@ -1946,14 +1948,82 @@ function renderSuggest(list, heading){
   sugEl.appendChild(w);
 }
 
+/* ---- job-description detection ----
+   Someone with a JD in the clipboard will paste it into whichever box is in
+   front of them. Run through the ask loop it becomes one long retrieval query,
+   which either trips the scope gate or returns a five-passage answer to a
+   question nobody asked. Detect it and offer the fit check instead — offer,
+   never auto-route: a false positive must cost one click, not the answer. */
+const JD_STRONG = [
+  /\bjob description\b/, /\bwe(?:'re| are)\s+(?:hiring|looking for|seeking)\b/,
+  /\bwhat you(?:'ll| will)\s+do\b/, /\bwhat we(?:'re| are)\s+looking for\b/,
+  /\b(?:minimum|preferred|basic)\s+qualifications\b/, /\babout the (?:role|job|position)\b/,
+  /\bequal opportunity employer\b/, /\bideal candidate\b/
+];
+const JD_MARKERS = [
+  /\bresponsibilit(?:y|ies)\b/, /\brequirements?\b/, /\bqualifications?\b/,
+  /\byears? of (?:relevant\s+)?experience\b/, /\bnice[- ]to[- ]have\b/, /\bmust[- ]have\b/,
+  /\bthe (?:role|position)\b/, /\byou(?:'ll| will) (?:be|work|own|lead|build|report)\b/,
+  /\bour team\b/, /\bfull[- ]time\b/, /\bremote[- ](?:first|friendly)\b/,
+  /\bsalary\b/, /\bcompensation\b/, /\bbenefits\b/, /\bapply\b/, /\bstack\b/
+];
+
+function looksLikeJobDescription(text){
+  const t = String(text).toLowerCase();
+  if(t.length < 220) return false;
+  const strong  = JD_STRONG.filter(re => re.test(t)).length;
+  const markers = JD_MARKERS.filter(re => re.test(t)).length;
+  // A strong signal still needs corroboration; without one, demand bulk plus breadth.
+  if(strong && strong + markers >= 2) return true;
+  return t.length >= 400 && markers >= 3;
+}
+
+function offerFitCheck(jdText){
+  const d = appendBotMsg("That looks like a job description", "no model call yet · $0.00000");
+  d.querySelector(".msg-body").innerHTML = `
+    <p style="margin:0 0 11px;font-size:15.5px;line-height:1.62">Pasted into the chat box it becomes one long retrieval query, which is not what you want from it.</p>
+    <p style="margin:0;font-size:15.5px;line-height:1.62">The fit check reads the whole description instead: it scores the role against Elroy's background on weighted criteria, twice — once as a skeptic, once as an advocate — and flags where the two lenses disagree. Shall I run that?</p>`;
+  const actions = d.querySelector(".msg-actions");
+  actions.style.cssText = "margin-top:12px;display:flex;flex-wrap:wrap;gap:8px";
+
+  const run = document.createElement("button");
+  run.className = "chip";
+  run.textContent = "Run the fit check →";
+  const anyway = document.createElement("button");
+  anyway.className = "chip";
+  anyway.textContent = "No, ask it as a question";
+
+  const spend = () => { run.disabled = true; anyway.disabled = true; };
+  run.onclick = () => {
+    if(busy) return;   // a turn is already streaming — leave the offer standing
+    spend();
+    const jd = $("#fit-jd");
+    if(jd) jd.value = jdText;   // keep the Fit tab in sync with what was assessed
+    submitFit(jdText);
+  };
+  anyway.onclick = () => { if(busy) return; spend(); ask(jdText, {skipFitOffer:true}); };
+  actions.append(run, anyway);
+  d.scrollIntoView({behavior:"smooth", block:"nearest"});
+  return d;
+}
+
 /* ---- the ask loop ---- */
 const history = [];
 let busy = false;
 
-async function ask(text){
+async function ask(text, opts){
   const q = String(text).trim();
   if(!q || busy) return;
   visitorDismissed = true;
+
+  // A pasted JD gets the fit check offered, not the ask loop run on it.
+  if(!(opts && opts.skipFitOffer) && CONFIG.generatorUrl && looksLikeJobDescription(q)){
+    appendUserMsg(q);
+    $("#q").value = "";
+    offerFitCheck(q);
+    return;
+  }
+
   busy = true;
   appendUserMsg(q);
   $("#q").value = "";
@@ -2409,7 +2479,7 @@ async function boot(){
   updateGenCostEst();
 }
 
-window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore,
+window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, looksLikeJobDescription,
   get busy(){ return busy; } };
 boot();
 </script>

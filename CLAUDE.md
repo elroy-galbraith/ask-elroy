@@ -51,6 +51,8 @@ The app is a single `index.html` assembled from six source files by `build.sh`:
 5. `POST { question, passages }` to the Cloudflare Worker, which calls Anthropic and streams SSE back.
 6. Groundedness check: flag the answer if citations are missing or out of range.
 
+A message that looks like a pasted job description short-circuits step 3: `ask()` calls `looksLikeJobDescription()` (`src/ui.js`) and **offers** the fit check instead — two chips, run it or ask it as a question anyway. It never auto-routes, so a false positive costs one click. Tune the heuristic via `JD_STRONG` / `JD_MARKERS`; `askElroy.looksLikeJobDescription(text)` exposes it in the console.
+
 The Worker does **no retrieval** — it only holds the API key and proxies the Anthropic stream. The browser supplies the passages; the Worker cannot invent sources.
 
 Without `CONFIG.generatorUrl` set, the app runs in retrieval-only mode (shows verbatim passage text instead of generated prose) — fully functional for testing retrieval and refusal.
