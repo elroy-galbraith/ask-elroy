@@ -198,7 +198,7 @@ function renderFitPanel(msgEl, panel){
     return `<div class="fit-row">
       <div class="fit-row-top">
         <span class="fit-row-label">${esc(c.label)}</span>
-        <span class="fit-row-weight">${"●".repeat(c.weight)}</span>
+        <span class="fit-row-weight">${"●".repeat(Math.max(0, Math.min(3, c.weight|0)))}</span>
         <span class="fit-row-badges">${badges}</span>
       </div>
       <div class="fit-track">
@@ -211,7 +211,7 @@ function renderFitPanel(msgEl, panel){
   panelEl.innerHTML = `
     <div class="fit-panel-head">
       <span class="fit-tier">${esc((panel.tier || "").toUpperCase())}</span>
-      <span class="fit-overall">${panel.overall}/100 · weighted across ${(panel.criteria||[]).length} criteria</span>
+      <span class="fit-overall">${esc(String(panel.overall))}/100 · weighted across ${(panel.criteria||[]).length} criteria</span>
     </div>
     ${rows}
     <div class="fit-legend">⚠ contested = lenses disagree by ≥30 &nbsp;·&nbsp; ✕ = likely gap</div>`;
@@ -338,6 +338,7 @@ async function submitFit(jdText){
     panel = await generateScore(text, vName, vCo);
     renderFitPanel(msgEl, panel);
   } catch(err){
+    console.warn("fit score failed", err);
     panel = null; // degrade to narrative-only
   }
 

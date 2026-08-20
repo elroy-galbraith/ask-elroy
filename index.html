@@ -103,6 +103,30 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
 /* --- small utility --- */
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 
+/* --- fit panel --- */
+.fit-layout{ display:flex; flex-direction:column; gap:20px; margin-bottom:8px }
+@media (min-width:920px){
+  .fit-layout{ flex-direction:row; align-items:flex-start }
+  .fit-layout > .fit-panel{ flex:0 0 320px }
+  .fit-layout > div:last-child{ flex:1 1 auto; min-width:0 }
+}
+.fit-panel{ border:1px solid var(--color-accent); padding:16px 18px; font-size:13px }
+.fit-panel-head{ display:flex; align-items:baseline; gap:10px; margin-bottom:14px; flex-wrap:wrap }
+.fit-tier{ font-weight:700; font-size:15px; letter-spacing:.02em }
+.fit-overall{ font-size:13px; color:var(--color-dim) }
+.fit-row{ margin-bottom:13px }
+.fit-row-top{ display:flex; align-items:baseline; gap:8px; margin-bottom:5px }
+.fit-row-label{ font-weight:600; font-size:12.5px }
+.fit-row-weight{ font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--color-dim) }
+.fit-row-badges{ margin-left:auto; font-size:10.5px; letter-spacing:.04em; text-transform:uppercase }
+.fit-badge-contested{ color:var(--color-accent) }
+.fit-badge-gap{ color:var(--color-bad) }
+.fit-track{ position:relative; height:8px; background:color-mix(in srgb,var(--color-text) 12%,transparent) }
+.fit-range{ position:absolute; top:0; height:8px; background:color-mix(in srgb,var(--color-accent) 45%,transparent) }
+.fit-mid{ position:absolute; top:-2px; width:2px; height:12px; background:var(--color-text) }
+.fit-scores{ font-size:11px; color:var(--color-dim); margin-top:4px }
+.fit-legend{ font-size:10.5px; color:var(--color-dim); margin-top:10px; border-top:1px solid color-mix(in srgb,var(--color-text) 12%,transparent); padding-top:8px }
+
 /* --- mobile --- */
 @media(max-width:640px){
   .container{padding:0 16px}
@@ -1555,6 +1579,47 @@ function renderAnswerIntoMsg(el, text, hits){
   body.innerHTML = html;
 }
 
+function renderFitPanel(msgEl, panel){
+  const border = msgEl.querySelector(".msg-body").parentElement; // the bordered narrative block
+  let layout = msgEl.querySelector(".fit-layout");
+  if(!layout){
+    layout = document.createElement("div");
+    layout.className = "fit-layout";
+    const panelEl = document.createElement("div");
+    panelEl.className = "fit-panel";
+    border.parentElement.insertBefore(layout, border);
+    layout.appendChild(panelEl);
+    layout.appendChild(border); // move narrative into the flex row, beside the panel
+  }
+  const panelEl = layout.querySelector(".fit-panel");
+  const rows = (panel.criteria || []).map(c => {
+    const lo = Math.min(c.skeptic, c.advocate), hi = Math.max(c.skeptic, c.advocate);
+    const badges = [
+      c.contested ? `<span class="fit-badge-contested" title="lenses disagree by ≥30">⚠ contested</span>` : "",
+      c.gap ? `<span class="fit-badge-gap" title="likely gap">✕ gap</span>` : ""
+    ].filter(Boolean).join(" &middot; ");
+    return `<div class="fit-row">
+      <div class="fit-row-top">
+        <span class="fit-row-label">${esc(c.label)}</span>
+        <span class="fit-row-weight">${"●".repeat(Math.max(0, Math.min(3, c.weight|0)))}</span>
+        <span class="fit-row-badges">${badges}</span>
+      </div>
+      <div class="fit-track">
+        <div class="fit-range" style="left:${lo}%;width:${Math.max(1, hi-lo)}%"></div>
+        <div class="fit-mid" style="left:${c.midpoint}%"></div>
+      </div>
+      <div class="fit-scores">skeptic ${c.skeptic} &nbsp;·&nbsp; advocate ${c.advocate}</div>
+    </div>`;
+  }).join("");
+  panelEl.innerHTML = `
+    <div class="fit-panel-head">
+      <span class="fit-tier">${esc((panel.tier || "").toUpperCase())}</span>
+      <span class="fit-overall">${esc(String(panel.overall))}/100 · weighted across ${(panel.criteria||[]).length} criteria</span>
+    </div>
+    ${rows}
+    <div class="fit-legend">⚠ contested = lenses disagree by ≥30 &nbsp;·&nbsp; ✕ = likely gap</div>`;
+}
+
 function setStreamingCaret(el, on){
   const body = el.querySelector(".msg-body");
   const existing = body.querySelector(".caret");
@@ -1661,48 +1726,63 @@ async function submitFit(jdText){
   appendUserMsg("How well does this role match Elroy's background?");
   const msgEl = appendBotMsg("Fit assessment", "assessing…");
 
-  if(CONFIG.generatorUrl){
-    setStreamingCaret(msgEl, true);
-    let acc = "";
-    const fakeHits = state.passages.map(p => ({ p }));
-    try{
-      const out = await generateFit(text, tok => {
-        acc += tok;
-        renderAnswerIntoMsg(msgEl, acc, fakeHits);
-        setStreamingCaret(msgEl, true);
-        msgEl.scrollIntoView({ behavior:"smooth", block:"nearest" });
-      }, visitor ? visitor.name : null, visitor ? visitor.company : null);
-
-      setStreamingCaret(msgEl, false);
-      renderAnswerIntoMsg(msgEl, out.text, fakeHits);
-
-      const ground = checkGrounding(out.text, fakeHits);
-      if(!ground.ok){
-        const flag = document.createElement("p");
-        flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
-        flag.textContent = "Groundedness flag: this assessment did not cite its sources cleanly. Treat it with suspicion.";
-        msgEl.querySelector(".msg-body").appendChild(flag);
-      }
-
-      state.gens++;
-      if(out.usage){
-        state.tokIn += out.usage.input_tokens;
-        state.tokOut += out.usage.output_tokens;
-        state.costUSD += (out.usage.input_tokens/1e6)*CONFIG.price.in + (out.usage.output_tokens/1e6)*CONFIG.price.out;
-        updateSessionSidebar();
-      }
-      const metaEl = msgEl.querySelector(".mono");
-      if(metaEl && out.usage){
-        const cost = (out.usage.input_tokens/1e6)*CONFIG.price.in + (out.usage.output_tokens/1e6)*CONFIG.price.out;
-        metaEl.textContent = state.passages.length + " passages · $" + cost.toFixed(5);
-      }
-    } catch(err){
-      setStreamingCaret(msgEl, false);
-      msgEl.querySelector(".msg-body").innerHTML = `<p style="color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px">The fit check failed (${esc(err.message)}). Try again or email <a href="mailto:${esc(PROFILE.email)}" style="color:var(--color-accent)">${esc(PROFILE.email)}</a> directly.</p>`;
-    }
-  } else {
+  if(!CONFIG.generatorUrl){
     setStreamingCaret(msgEl, false);
     msgEl.querySelector(".msg-body").innerHTML = `<p style="color:var(--color-dim);font-size:.85rem">No generator configured — fit assessment requires the live worker.</p>`;
+    busy = false; return;
+  }
+
+  const vName = visitor ? visitor.name : null;
+  const vCo   = visitor ? visitor.company : null;
+
+  // 1. Structured score panel — additive; its failure must never break the narrative.
+  let panel = null;
+  try {
+    panel = await generateScore(text, vName, vCo);
+    renderFitPanel(msgEl, panel);
+  } catch(err){
+    console.warn("fit score failed", err);
+    panel = null; // degrade to narrative-only
+  }
+
+  // 2. Narrative, streamed and kept consistent with the panel.
+  setStreamingCaret(msgEl, true);
+  let acc = "";
+  const fakeHits = state.passages.map(p => ({ p }));
+  try{
+    const out = await generateFit(text, tok => {
+      acc += tok;
+      renderAnswerIntoMsg(msgEl, acc, fakeHits);
+      setStreamingCaret(msgEl, true);
+      msgEl.scrollIntoView({ behavior:"smooth", block:"nearest" });
+    }, vName, vCo, panel);
+
+    setStreamingCaret(msgEl, false);
+    renderAnswerIntoMsg(msgEl, out.text, fakeHits);
+
+    const ground = checkGrounding(out.text, fakeHits);
+    if(!ground.ok){
+      const flag = document.createElement("p");
+      flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
+      flag.textContent = "Groundedness flag: this assessment did not cite its sources cleanly. Treat it with suspicion.";
+      msgEl.querySelector(".msg-body").appendChild(flag);
+    }
+
+    state.gens++;
+    if(out.usage){
+      state.tokIn += out.usage.input_tokens;
+      state.tokOut += out.usage.output_tokens;
+      state.costUSD += (out.usage.input_tokens/1e6)*CONFIG.price.in + (out.usage.output_tokens/1e6)*CONFIG.price.out;
+      updateSessionSidebar();
+    }
+    const metaEl = msgEl.querySelector(".mono");
+    if(metaEl && out.usage){
+      const cost = (out.usage.input_tokens/1e6)*CONFIG.price.in + (out.usage.output_tokens/1e6)*CONFIG.price.out;
+      metaEl.textContent = state.passages.length + " passages · $" + cost.toFixed(5);
+    }
+  } catch(err){
+    setStreamingCaret(msgEl, false);
+    msgEl.querySelector(".msg-body").innerHTML = `<p style="color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px">The fit check failed (${esc(err.message)}). Try again or email <a href="mailto:${esc(PROFILE.email)}" style="color:var(--color-accent)">${esc(PROFILE.email)}</a> directly.</p>`;
   }
   busy = false;
 }
