@@ -8,7 +8,7 @@ const $ = s => document.querySelector(s);
 function showTab(name){
   if(name === "trace"){ showTab("advanced"); showAdvancedTab("trace"); return; }
   if(name === "eval"){ showTab("advanced"); showAdvancedTab("eval"); return; }
-  ["fit","chat","advanced"].forEach(t => {
+  ["fit","cv","chat","advanced"].forEach(t => {
     const btn = $("#tab-"+t);
     if(btn) btn.setAttribute("aria-current", t === name ? "true" : "false");
     const panel = $("#pane-"+t);
@@ -16,7 +16,7 @@ function showTab(name){
     panel.style.display = (t === name) ? (t === "chat" ? "grid" : "block") : "none";
   });
   $("#input-tray").style.display = name === "chat" ? "" : "none";
-  const hints = {fit:"paste a job description to check the fit", chat:"grounded answers only", advanced:"retrieval internals · eval suite"};
+  const hints = {fit:"paste a job description to check the fit", cv:"conventional CV view", chat:"grounded answers only", advanced:"retrieval internals · eval suite"};
   $("#tab-hint").textContent = hints[name] || "";
 }
 
@@ -748,6 +748,7 @@ function refreshCost(){
 /* ---- tabs & boot ---- */
 $("#tab-chat").onclick     = () => showTab("chat");
 $("#tab-fit").onclick      = () => showTab("fit");
+$("#tab-cv").onclick       = () => showTab("cv");
 $("#tab-advanced").onclick = () => showTab("advanced");
 
 const heroChatBtn = $("#hero-chat");
