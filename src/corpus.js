@@ -227,7 +227,7 @@ a:`<ul>
 a:`<p>English is native. Japanese is conversational, JLPT N4 — I am comfortable in technical environments with English support, and I have delivered production systems in a Japanese-language product context, including a Japanese-language support agent.</p>
 <p>I will not overstate this: business-level Japanese negotiation is not yet my strength, and if a role needs it I would rather you know now.</p>`},
 
-{cat:"Skills", q:"Do you have LLM production experience, or just prototypes?", k:"production llm genai real users live deployed prototype poc scale reliability experience shipping",
+{cat:"Skills", q:"Do you have LLM production experience, or just prototypes?", k:"production llm genai real users live deployed prototype poc scale reliability experience shipping built projects works portfolio achievements notable",
 a:`<p>Production, with real consequences attached.</p>
 <ul>
 <li>An LLM decision engine that produces recommendations on live credit applications, reviewed by a credit and risk team.</li>
