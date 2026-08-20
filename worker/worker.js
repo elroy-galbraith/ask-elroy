@@ -248,28 +248,40 @@ async function handleGenerate(request, env, ctx) {
   });
 }
 
-async function callJSON(env, model, system, user) {
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "authorization": `Bearer ${env.OPENROUTER_API_KEY}`
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: MAX_TOKENS,
-      reasoning: { exclude: true },
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user }
-      ]
-    })
-  });
-  if (!res.ok) throw new Error("upstream " + res.status);
-  const data = await res.json();
-  const text = data.choices && data.choices[0] && data.choices[0].message
-    ? data.choices[0].message.content : "";
-  return { json: parseLooseJSON(text), usage: data.usage || null };
+async function callJSON(env, model, system, user, attempts = 3) {
+  // Retry on upstream errors AND on unparseable output: models (especially
+  // free tiers) intermittently return empty content or prose with no JSON.
+  // A fresh attempt usually recovers; only after all attempts fail do we throw,
+  // which surfaces as a 502 and degrades the panel to narrative-only.
+  let lastErr;
+  for (let a = 0; a < attempts; a++) {
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "authorization": `Bearer ${env.OPENROUTER_API_KEY}`
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: MAX_TOKENS,
+          reasoning: { exclude: true },
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user }
+          ]
+        })
+      });
+      if (!res.ok) throw new Error("upstream " + res.status);
+      const data = await res.json();
+      const text = data.choices && data.choices[0] && data.choices[0].message
+        ? data.choices[0].message.content : "";
+      return { json: parseLooseJSON(text), usage: data.usage || null };
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr;
 }
 
 export function parseLooseJSON(text) {
