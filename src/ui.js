@@ -176,6 +176,47 @@ function renderAnswerIntoMsg(el, text, hits){
   body.innerHTML = html;
 }
 
+function renderFitPanel(msgEl, panel){
+  const border = msgEl.querySelector(".msg-body").parentElement; // the bordered narrative block
+  let layout = msgEl.querySelector(".fit-layout");
+  if(!layout){
+    layout = document.createElement("div");
+    layout.className = "fit-layout";
+    const panelEl = document.createElement("div");
+    panelEl.className = "fit-panel";
+    border.parentElement.insertBefore(layout, border);
+    layout.appendChild(panelEl);
+    layout.appendChild(border); // move narrative into the flex row, beside the panel
+  }
+  const panelEl = layout.querySelector(".fit-panel");
+  const rows = (panel.criteria || []).map(c => {
+    const lo = Math.min(c.skeptic, c.advocate), hi = Math.max(c.skeptic, c.advocate);
+    const badges = [
+      c.contested ? `<span class="fit-badge-contested" title="lenses disagree by ≥30">⚠ contested</span>` : "",
+      c.gap ? `<span class="fit-badge-gap" title="likely gap">✕ gap</span>` : ""
+    ].filter(Boolean).join(" &middot; ");
+    return `<div class="fit-row">
+      <div class="fit-row-top">
+        <span class="fit-row-label">${esc(c.label)}</span>
+        <span class="fit-row-weight">${"●".repeat(c.weight)}</span>
+        <span class="fit-row-badges">${badges}</span>
+      </div>
+      <div class="fit-track">
+        <div class="fit-range" style="left:${lo}%;width:${Math.max(1, hi-lo)}%"></div>
+        <div class="fit-mid" style="left:${c.midpoint}%"></div>
+      </div>
+      <div class="fit-scores">skeptic ${c.skeptic} &nbsp;·&nbsp; advocate ${c.advocate}</div>
+    </div>`;
+  }).join("");
+  panelEl.innerHTML = `
+    <div class="fit-panel-head">
+      <span class="fit-tier">${esc((panel.tier || "").toUpperCase())}</span>
+      <span class="fit-overall">${panel.overall}/100 · weighted across ${(panel.criteria||[]).length} criteria</span>
+    </div>
+    ${rows}
+    <div class="fit-legend">⚠ contested = lenses disagree by ≥30 &nbsp;·&nbsp; ✕ = likely gap</div>`;
+}
+
 function setStreamingCaret(el, on){
   const body = el.querySelector(".msg-body");
   const existing = body.querySelector(".caret");
