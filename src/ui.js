@@ -54,19 +54,6 @@ function setStatusDetails(model, index){
 }
 
 /* ---- sidebar ---- */
-function updateSidebar(trace){
-  if(!trace) return;
-  const cost = trace.usage
-    ? ((trace.usage.input_tokens/1e6)*CONFIG.price.in + (trace.usage.output_tokens/1e6)*CONFIG.price.out)
-    : (trace.answered ? 0 : 0);
-  const g = gate();
-  $("#sb-mode").textContent = state.mode + (state.backend ? " · " + state.backend.split(" · ")[1] : "");
-  $("#sb-conf").textContent = trace.conf.toFixed(3);
-  $("#sb-gate").textContent = g.toFixed(2);
-  $("#sb-decision").textContent = trace.answered ? "answer" : "refuse";
-  $("#sb-retrieve").textContent = Math.round(trace.msRetrieve) + " ms";
-  $("#sb-cost").textContent = trace.usage ? "$" + cost.toFixed(5) : "$0.00000";
-}
 function updateSessionSidebar(){
   const cost = (state.tokIn/1e6)*CONFIG.price.in + (state.tokOut/1e6)*CONFIG.price.out;
   $("#sb-gens").textContent = state.gens + " / " + CONFIG.maxGenPerSession;
@@ -129,9 +116,11 @@ function updateTracePanel(trace){
   // gate & grounding
   const cost = trace.usage
     ? ((trace.usage.input_tokens/1e6)*CONFIG.price.in + (trace.usage.output_tokens/1e6)*CONFIG.price.out) : 0;
+  $("#tg-mode").textContent = state.mode + (state.backend ? " · " + state.backend.split(" · ")[1] : "");
   $("#tg-conf").textContent = trace.conf.toFixed(3);
   $("#tg-gate").textContent = g.toFixed(2);
   $("#tg-decision").textContent = trace.answered ? "answer" : "refuse";
+  $("#tg-retrieve").textContent = Math.round(trace.msRetrieve) + " ms";
   $("#tg-citations").textContent = trace.ground
     ? (trace.ground.ok ? "valid · " + Math.round(trace.ground.coverage*100) + "% cited" : "FLAG — check answer")
     : (trace.answered ? "n/a" : "n/a");
@@ -176,19 +165,14 @@ function renderAnswerIntoMsg(el, text, hits){
   body.innerHTML = html;
 }
 
-function renderFitPanel(msgEl, panel){
-  const border = msgEl.querySelector(".msg-body").parentElement; // the bordered narrative block
-  let layout = msgEl.querySelector(".fit-layout");
-  if(!layout){
-    layout = document.createElement("div");
-    layout.className = "fit-layout";
-    const panelEl = document.createElement("div");
-    panelEl.className = "fit-panel";
-    border.parentElement.insertBefore(layout, border);
-    layout.appendChild(panelEl);
-    layout.appendChild(border); // move narrative into the flex row, beside the panel
-  }
-  const panelEl = layout.querySelector(".fit-panel");
+function renderFitPanel(panel){
+  const panelEl = $("#chat-fit-panel");
+  const aside = $("#chat-aside");
+  const pane = $("#pane-chat");
+  if(!panelEl || !aside || !pane) return;
+  // open the sidebar column — the scorecard stays on screen as the thread scrolls
+  aside.style.display = "block";
+  pane.style.gridTemplateColumns = "minmax(0,1fr) 320px";
   const rows = (panel.criteria || []).map(c => {
     const lo = Math.min(c.skeptic, c.advocate), hi = Math.max(c.skeptic, c.advocate);
     const badges = [
@@ -209,6 +193,7 @@ function renderFitPanel(msgEl, panel){
     </div>`;
   }).join("");
   panelEl.innerHTML = `
+    <div class="section-label" style="margin-bottom:11px">Fit check</div>
     <div class="fit-panel-head">
       <span class="fit-tier">${esc((panel.tier || "").toUpperCase())}</span>
       <span class="fit-overall">${esc(String(panel.overall))}/100 · weighted across ${(panel.criteria||[]).length} criteria</span>
@@ -336,7 +321,7 @@ async function submitFit(jdText){
   let panel = null;
   try {
     panel = await generateScore(text, vName, vCo);
-    renderFitPanel(msgEl, panel);
+    renderFitPanel(panel);
   } catch(err){
     console.warn("fit score failed", err);
     panel = null; // degrade to narrative-only
@@ -458,7 +443,6 @@ async function ask(text){
   if(r.conf < g){
     const meta = "cos " + r.conf.toFixed(3) + " < gate " + g.toFixed(2) + " · refused before the model call · $0.00000";
     appendRefusal(meta);
-    updateSidebar({...trace, msRetrieve});
     updateTracePanel(trace);
     if(CONFIG.generatorUrl){
       fetch(CONFIG.generatorUrl + "/log", {
@@ -539,7 +523,6 @@ async function ask(text){
     addTraceLink(msgEl);
   }
 
-  updateSidebar({...trace, msRetrieve});
   updateTracePanel(trace);
   updateSessionSidebar();
 
@@ -849,10 +832,7 @@ async function boot(){
   state.passages = buildPassages();
   state.bm25 = buildBM25(state.passages);
 
-  const intro = appendBotMsg("Hi there", "");
-  intro.querySelector(".msg-body").innerHTML = `
-    <p style="margin:0 0 11px;font-size:15.5px;line-height:1.62">I'm a conversational assistant built by Elroy to help you get to know him — his experience, projects, skills, and what he's looking for next.</p>
-    <p style="margin:0;font-size:15.5px;line-height:1.62">Ask me anything. Every answer comes straight from what Elroy wrote about himself, and I'll show you exactly where each answer came from. If I don't have it, I'll tell you that too.</p>`;
+  // the greeting lives in the hero now — the thread opens straight on the suggestions
   renderSuggest(null);
 
   try{
