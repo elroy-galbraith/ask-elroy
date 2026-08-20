@@ -7,19 +7,20 @@
 ------------------------------------ */
 const PROFILE = {
   name: "Elroy Galbraith, Ph.D.",
-  tagline: "Lead AI Engineer &amp; Data Architect — financial ML + applied GenAI",
+  tagline: "Applied AI / ML Engineer &amp; AI Evaluation Scientist — financial ML + production LLM systems",
   email: "elroy.galbraith@gmail.com",
   linkedin: "https://www.linkedin.com/in/elroygalbraith",
-  location: "Sapporo / Tokyo, Japan"
+  location: "Sapporo, Japan"
 };
 
-const CATS = ["Start here","Experience","How I work","Skills","Fit & logistics"];
+const CATS = ["Start here","Experience","How I work","Research & service","Skills","Fit & logistics"];
 
 const BANK = [
 {cat:"Start here", q:"Who are you, in one paragraph?", k:"intro introduction summary about elevator pitch overview yourself tell me profile background snapshot bio",
-a:`<p>I'm Elroy Galbraith. I build production AI systems for financial decision-making — and I build the measurement infrastructure that says whether those systems can be trusted.</p>
-<p>Today I'm Data Science Team Lead at Yoii (Tokyo), where I built the LLM decision engine behind an SME underwriting platform, and Chief Data Officer at Aeon Technology Solutions, where I own the data and AI stack behind stock-exchange filing analysis and real-estate valuation. I hold a PhD in Information Science from Hokkaido University, with earlier training in economics and complex systems.</p>
-<p>My edge is the intersection of financial ML and applied GenAI. Credit scoring, underwriting, valuation — paired with agentic and LLM systems. Few people sit credibly in both.</p>`},
+a:`<p>I'm Elroy Galbraith. I build production AI systems for financial decision-making — and I build the instrument that says whether those systems can be trusted.</p>
+<p>Three roles, and I state the structure openly rather than let it be discovered. <b>Data Science Team Lead at Yoii</b> (Tokyo, full time, 2022–present), where I built the LLM decision engine behind an SME underwriting platform and own the answer-quality layer of a Japanese-language support agent. <b>Chief Data Officer at Aeon Technology Solutions</b> (part time, and my own startup, 2023–present), where I own the data and AI stack behind stock-exchange filing analysis and real-estate valuation. And since August 2026, <b>elected Vice Chair of the Research Committee at the Jamaica AI Association</b> — voluntary, with a remit to design and execute AI research and mentor the interns who run it.</p>
+<p>I hold a Ph.D. in Information Science and Technology from Hokkaido University, with earlier training in economics and complex systems, and I keep a live research record: 11 works, 52 citations, h-index 5, first or sole author on seven.</p>
+<p>My edge is the intersection of financial ML and applied GenAI — credit scoring, underwriting, valuation, paired with agentic LLM systems and the evaluation science that says whether either one works. Few people sit credibly in both.</p>`},
 
 {cat:"Start here", q:"What makes you different from other ML engineers?", k:"differentiator unique edge stand out special why hire you strength best at superpower evaluation scientist",
 a:`<p>Most engineers who build LLM systems stop at "it works on the demos." I build the second system: the instrument that measures whether the first one can be trusted.</p>
@@ -29,7 +30,8 @@ a:`<p>Most engineers who build LLM systems stop at "it works on the demos." I bu
 <li>Noise-floor measurement, so we know which result deltas are real and which are noise.</li>
 <li>Cost governance, so evaluation does not become the expensive part.</li>
 </ul>
-<p>And when the instrument returns an unflattering result, I publish it. I have twice reported negative results against my own shipped work, and both times the roadmap changed because of it. That combination — building the system and holding it accountable — is the rare part of my profile.</p>`},
+<p>And when the instrument returns an unflattering result, I publish it. Two of my four major projects carry negative findings I reported against systems I built myself, and both times the roadmap changed because of it.</p>
+<p>The research record says the same thing in peer-facing form: 11 works, 52 citations, h-index 5, first or sole author on seven — including a sole-authored 2026 preprint on streaming retrieval that reports its own effect size as modest and decomposes its headline number rather than quoting the flattering aggregate. That combination — building the system, holding it accountable, and publishing the result either way — is the rare part of my profile.</p>`},
 
 {cat:"Start here", q:"What kind of role are you looking for?", k:"looking for want seeking ideal next role target position type fit desired opportunity hand off handoff hands over handover after building",
 a:`<p>Deep technical ownership, still hands-on. Senior individual-contributor, applied-research, or architect shape — the seat where I own the architecture, not just one component.</p>
@@ -49,22 +51,25 @@ a:`<p>"When I build something that works, who owns taking it to production and m
 /* ---------------- EXPERIENCE ---------------- */
 
 {cat:"Experience", q:"What do you do at Yoii?", k:"yoii current job now present employer role tokyo what are you working on today day to day currently today right now doing lately these days",
-a:`<p>Yoii is a Tokyo fintech doing revenue-based financing for Japanese SMEs. My title is Data Science Team Lead; my day-to-day is hands-on building.</p>
+a:`<p>Yoii is a Tokyo fintech doing revenue-based financing for Japanese SMEs. I joined in 2022; my title is Data Science Team Lead and this is my full-time role. My day-to-day is hands-on building.</p>
 <p>Two systems are mine:</p>
 <ul>
-<li><b>ODIN</b> — the underwriting decision engine. An agent pipeline that reads applicant documents, extracts and enriches the data, runs financial analysis and risk scoring, and produces an APPROVE / REJECT / MANUAL_REVIEW recommendation with a written rationale for a human examiner.</li>
-<li><b>A Japanese-language customer-support agent</b> — a production LLM agent on live chat and email. I own the answer-quality layer: retrieval architecture, knowledge-base pipeline, and evaluation.</li>
+<li><b>ODIN</b> (2025–2026) — the underwriting decision engine. An agent pipeline that reads applicant documents, extracts and enriches the data, runs financial analysis and risk scoring, and produces an APPROVE / REJECT / MANUAL_REVIEW recommendation with a written rationale for a human examiner. I also built the evaluation infrastructure that measures it, and published the unflattering result it returned.</li>
+<li><b>A Japanese-language customer-support agent</b> (November 2025 – present) — a production LLM agent on live chat and email. I own the answer-quality layer: retrieval architecture, knowledge-base pipeline, and evaluation.</li>
 </ul>
-<p>On the underwriting codebase I am a top-2 contributor with roughly 1,100 commits across a 15-person repository.</p>`},
+<p>On the underwriting codebase I am a top-2 contributor with roughly 1,100 commits, out of 158 contributors.</p>`},
 
 {cat:"Experience", q:"Tell me about the underwriting decision engine (ODIN).", k:"odin underwriting credit decision engine lending rbf revenue based financing loan approve reject agent pipeline dspy",
 a:`<p>ODIN decides on real credit applications for real money, so every part of it is built to be auditable.</p>
 <p><b>The system.</b> Three phases. Phase 1 runs nine data-collection services concurrently — document ingest, OCR and LLM vision extraction, web research, corporate-registry enrichment. Phase 2 runs three LLM summarizers. Phase 3 runs the decision agent, which produces the recommendation and the rationale a human examiner reads.</p>
 <p><b>What I built.</b> The funding-decision agent itself; the data synthesizer that feeds it; a completeness gate that downgrades a decision when the underlying data is thin; and a deterministic knockout-factor path kept strictly separate from generated text, so rule-based rejections are grounded by construction rather than by hope. Six prompt iterations are maintained as standalone versioned modules, so any historical decision can still be replayed exactly.</p>
+<p><b>An alternative I prototyped and measured rather than argued about.</b> An advocate / skeptic / judge debate architecture, built by subclassing the production module so the output contract stayed identical and any metric delta was attributable to the debate structure alone. It ran through an offline shadow-replay job entirely off the live decision path — idempotent per decision and engine, recording the resolved model, prompt version and git SHA so replays weeks apart stay comparable.</p>
+<p><b>Also mine on this platform.</b> The examiner-facing React UI, the workflow orchestrator service (HMAC-authenticated, consumed from a peered VPC), the Postgres↔Snowflake sync, and the Terraform for dev and prod.</p>
 <p><b>Stack.</b> Python/FastAPI, DSPy, Postgres and Snowflake, React/TypeScript, Prefect, Terraform on AWS ECS, Langfuse for tracing, GitHub Actions for CI.</p>`},
 
 {cat:"Experience", q:"How did you evaluate the underwriting engine?", k:"evaluation eval harness golden set benchmark measure testing odin noise floor calibration ab test rigor",
-a:`<p>I built eight golden-set evaluation suites on a shared harness — one for the decision agent and seven for the document-extraction paths — with frozen-input replay, a variant-agnostic A/B runner, human draft-then-approve labeling, and a canonical label store. Results are versioned by git SHA so regressions are traceable. 2,118 tests gate CI.</p>
+a:`<p>I built eight golden-set evaluation suites on a shared harness — one for the decision agent and seven for the document-extraction paths — with frozen-input replay, a variant-agnostic A/B runner, human draft-then-approve labeling, and a tracing platform as the canonical label store. Results are versioned by git SHA so regressions are traceable. 2,118 tests gate CI.</p>
+<p>Calibration is two-tier by design: reference-free proxy scorers calibrated against human-labeled truth, then reported as sensitivity, false-alarm rate and alarm precision — never collapsed into a single accuracy number that hides which way the errors go.</p>
 <p>Then I established that the evaluation itself could not be trusted, and fixed it:</p>
 <ul>
 <li><b>Stale cache.</b> The harness was scoring cached replays as fresh inference. A reported three correct approvals reproduced as one, zero, one with caching off. Cache-off became the default in the replay path.</li>
@@ -80,16 +85,20 @@ a:`<p>Two, both against my own work.</p>
 <p>None of these were comfortable. All three saved engineering months.</p>`},
 
 {cat:"Experience", q:"Tell me about the customer-support agent.", k:"support agent customer service chatbot japanese hubspot bedrock claude retrieval knowledge base rag",
-a:`<p>A Japanese-language support agent running on live chat and email, built on Claude via Amazon Bedrock. Two-engineer team: I owned the AI layer — retrieval architecture, knowledge-base pipeline, and evaluation — while my colleague owned serverless infrastructure and channel integration.</p>
+a:`<p>A Japanese-language support agent running on HubSpot live chat and email, built on Claude via Amazon Bedrock, from November 2025. Two-engineer team: I owned the AI layer — retrieval architecture, knowledge-base pipeline, and evaluation — while my colleague owned serverless infrastructure and channel integration.</p>
 <ul>
 <li><b>Found the gaps empirically.</b> I ingested and PII-redacted 9,073 support email threads across 365 days, filtered to 1,075 substantive threads, and clustered them into five customer-journey stages. That decided where engineering effort went, and produced the held-out test cases every later experiment used.</li>
 <li><b>Replaced a flat prompt-injected FAQ with agentic per-domain retrieval</b> — a bounded tool-use loop over ten topical knowledge-base documents, each following a strict contract: Canonical Answers / Gotchas — Don't Say / Escalate When. On held-out hard cases the piloted categories went from 1 of 6 to 6 of 6, with no new false answers.</li>
 <li><b>Result.</b> Measured answer accuracy rose from 92.8% to 95.7% on a 138-case suite, and false escalations fell from 9 to 5.</li>
 <li><b>Handed control to non-engineers.</b> The knowledge base is plain markdown with an explicit escalation section, so the support team authors what the bot will and will not say without an engineering change. Rollback needs no redeploy: remove one artifact from the bundle and the retrieval tool disappears from the system prompt on the next request.</li>
-</ul>`},
+<li><b>Built the pipeline that keeps the knowledge base current</b> — roughly 1,900 lines, human-in-the-loop end to end: thread distillation with nested-quote stripping, LLM classification of support versus business-development threads, FAQ candidate extraction, automated push to a review workspace for support-team approval, then merge of approved entries back into the production corpus.</li>
+<li><b>Scaled the knowledge base from 2 to 10 categories against explicit safety acceptance gates.</b> Safety-critical escalation held at 95%, multi-topic handling improved from 0.20 to 0.32, bad escalations fell from 11 to 7. One gate failed, and I published it as a failed criterion with root-cause analysis rather than quietly dropping it. I also root-caused a 1-in-54 hallucination (1.9%) while explicitly declining to over-read a sample of one.</li>
+</ul>
+<p>The measurement side of this — the closed-set harness, the multi-turn simulation, and the judge rubric — is a separate story worth asking about on its own.</p>`},
 
 {cat:"Experience", q:"How do you evaluate a conversational agent?", k:"llm as judge simulation persona rubric multi turn conversation evaluation judge inter rater agreement cost",
-a:`<p>Closed-set question-and-answer tests are necessary and insufficient — they are blind to conversational failure modes. So I built a multi-turn simulation and LLM-as-Judge harness on top.</p>
+a:`<p>With a multi-turn simulation and LLM-as-Judge harness — roughly 4,500 lines — scoring each conversation on five dimensions against a nine-tag failure taxonomy.</p>
+<p>It exists because the layer underneath it was not enough. That layer is a deterministic closed-set harness, roughly 740 lines covering 138 cases: 120 auto-derived from the FAQ corpus plus 18 hand-written held-out cases, with baseline snapshotting behind a five-percentage-point regression gate, per-product filtering, and parallel execution at about $0.50 a run. Necessary, and structurally blind to conversational failure modes — which is the whole reason for the harness above it.</p>
 <ul>
 <li><b>Three models, three roles, deliberately separated.</b> The production model as system-under-test so there is no drift; a <i>cross-vendor</i> model as the simulated user, to break same-family collusion; a third model as judge.</li>
 <li><b>A judge rubric designed for inter-rater agreement over scoring resolution.</b> I replaced a 0–5 Likert scale with closed-set categorical buckets carrying per-choice behavioural anchors, made quoted evidence mandatory and enforced it at both schema and runtime, and hid the dimension weight map from the judge.</li>
@@ -99,7 +108,7 @@ a:`<p>Closed-set question-and-answer tests are necessary and insufficient — th
 <p>Every run stamps the system git SHA, publishes its reproduction command, and carries a written threats-to-validity section.</p>`},
 
 {cat:"Experience", q:"What do you do at Aeon Technology Solutions?", k:"aeon aeontsolutions chief data officer cdo second job jse jamaica stock exchange real estate valuation",
-a:`<p>Chief Data Officer. In practice I am the architect and a working engineer on three things:</p>
+a:`<p>Chief Data Officer since 2023 — part time, and it is my own startup, which I say up front rather than let an interviewer discover. In practice I am the architect and a working engineer on three things:</p>
 <ul>
 <li><b>A financial question-answering system over Jamaica Stock Exchange data</b> — users ask in natural language and get a grounded, cited answer instead of digging through PDFs and spreadsheets.</li>
 <li><b>The filing extraction pipeline</b> that turns regulatory PDFs into queryable financial data, with a human review stage because LLM and OCR extraction is not reliable enough to publish blind.</li>
@@ -125,7 +134,7 @@ a:`<p>Listed companies file annual reports, financial statements, prospectuses a
 <li>Fixed a fabricated-fiscal-year bug on non-financial document types.</li>
 <li>Built garbled-output heuristics that catch malformed extraction before a human reviewer ever sees it, plus anomaly detection, cross-reference checks, and staleness comparison that stop the warehouse drifting silently from source truth.</li>
 </ul>
-<p>I also designed a head-to-head model benchmark — two vendors on the same classification task, scored on accuracy, F1, precision and recall, cost per document, and latency, over a curated 99-document golden set stratified across seven filing types. <b>Honest caveat:</b> that framework was never run to completion. Treat it as evidence of evaluation design, not as a finished benchmark.</p>`},
+<p>I also designed a head-to-head model benchmark — two vendors on the same classification task, scored on accuracy, F1, precision and recall, cost per document, and latency, over a curated 99-document golden set stratified across seven filing types. <b>Honest scope note:</b> what I claim there is the design of the framework and the golden dataset. I am not claiming a published head-to-head result, and I will not assert one I have not verified — treat it as evidence of evaluation design, not as a finished benchmark.</p>`},
 
 {cat:"Experience", q:"Have you found bugs nobody else caught?", k:"data quality silent failure bug found upstream monitoring blind spot corruption debugging root cause",
 a:`<p>Regularly, and usually because the measurement work surfaced them rather than because monitoring fired.</p>
@@ -148,13 +157,14 @@ a:`<p>In order:</p>
 <li><b>2011–2013 —</b> M.Sc., University of the West Indies. Economic modelling and social data analysis.</li>
 <li><b>2013–2018 —</b> Senior Economist, Consumer Affairs Commission, Kingston, Jamaica. Econometric research feeding national consumer policy; commodity price monitoring for regulators.</li>
 <li><b>2019–2022 —</b> Ph.D., Information Science and Technology, Hokkaido University, Japan. Complex systems and big-data decision-making.</li>
-<li><b>2022–present —</b> Data Science Team Lead, Yoii (Tokyo). LLM decision engine for SME underwriting; Japanese-language customer-support agent.</li>
-<li><b>2022–present —</b> Chief Data Officer, Aeon Technology Solutions (concurrent). Financial question-answering over Jamaica Stock Exchange data; real-estate valuation pipeline; filing extraction.</li>
+<li><b>2022–present —</b> Data Science Team Lead, Yoii (Tokyo). Full time. LLM decision engine for SME underwriting; Japanese-language customer-support agent.</li>
+<li><b>2023–present —</b> Chief Data Officer, Aeon Technology Solutions. Part time, and my own startup. Financial question-answering over Jamaica Stock Exchange data; real-estate valuation pipeline; filing extraction.</li>
+<li><b>Aug 2026–present —</b> Vice Chair, Research Committee, Jamaica AI Association. Elected, voluntary. Designing and executing AI research and R&amp;D, and mentoring interns.</li>
 </ul>
-<p>Five years as an economist, then a research doctorate, then hands-on AI engineering in fintech — the two threads meet in financial ML, which is where I do my best work.</p>`},
+<p>Five years as an economist, then a research doctorate, then hands-on AI engineering in fintech — the two threads meet in financial ML, which is where I do my best work. The concurrency is deliberate and I volunteer it before anyone asks: founding and running a data company part time while leading a data science team full time reads as capacity, not as a gap in the story.</p>`},
 
 {cat:"Experience", q:"What is the largest team or codebase you have worked in?", k:"team size codebase scale collaboration contributors big large company",
-a:`<p>The Yoii underwriting platform: a 15-person codebase where I am a top-2 contributor with roughly 1,100 commits. The support-agent programme was a two-engineer team with a clean ownership split — I held the AI layer, my colleague held infrastructure and channel integration.</p>
+a:`<p>The Yoii underwriting platform: a repository with 158 contributors, where I am a top-2 contributor with roughly 1,100 commits. The support-agent programme was a two-engineer team with a clean ownership split — I held the AI layer, my colleague held infrastructure and channel integration.</p>
 <p>Neither is FAANG scale. What they are is full-ownership scale: I have been the person accountable for whether a system works, not one contributor to a component someone else integrates.</p>`},
 
 /* ---------------- HOW I WORK ---------------- */
@@ -162,6 +172,7 @@ a:`<p>The Yoii underwriting platform: a 15-person codebase where I am a top-2 co
 {cat:"How I work", q:"Are you an individual contributor or a manager?", k:"ic manager management lead people leadership title team lead cdo hands on coding still code",
 a:`<p>My titles are leadership titles — Data Science Team Lead, Chief Data Officer — and I have mentored engineers, set standards, and run the technical direction of a function. Titles and roles are two different axes though, so let me be plain about the second one.</p>
 <p>My centre of gravity is hands-on. I write the code, own the architecture, and do the measurement. I am looking for a seat with deep technical ownership rather than one where I am buried in process and never touch the system. Principal, applied-research, or architect shapes fit; pure people-management does not.</p>
+<p>There is one more piece of leadership evidence I would rather offer than have dug out of me: I was <i>elected</i> Vice Chair of the Research Committee at the Jamaica AI Association in August 2026. The remit is designing and executing the research agenda and mentoring the interns who execute it. It is the growing-researchers half of leadership, at national level, without committing me to a management ladder.</p>
 <p>I am happy to lead. I am not happy to stop building.</p>`},
 
 {cat:"How I work", q:"How do you decide what to ship?", k:"decision making process methodology how do you work approach ship prioritise evidence experiment",
@@ -190,21 +201,56 @@ a:`<p>Two honest ones.</p>
 <p><b>Japanese.</b> I am conversational, at JLPT N4. I work effectively in Japanese technical environments with English support, but I would not claim business-level fluency.</p>
 <p>A third, more of a tendency: whenever I am close to the work I end up wanting a say in how the whole thing is designed. In the right seat that is an asset. In a narrowly scoped component role it would be friction, and I would rather say so up front.</p>`},
 
-{cat:"How I work", q:"Do you publish or share your work?", k:"publish publication paper research arxiv writing blog conference open source share community papers published authored preprint journal",
-a:`<p>Yes, and I want a role where that is possible.</p>
+/* ---------------- RESEARCH & SERVICE ---------------- */
+
+{cat:"Research & service", q:"Do you publish or share your work?", k:"publish publication paper research arxiv writing blog conference share community papers published authored preprint journal citations h index scholar record thesis dissertation",
+a:`<p>Yes, and I want a role where that stays possible. Eleven works between 2016 and 2026, 52 citations, h-index 5, i10-index 3, first or sole author on seven. Citation counts are from Google Scholar as of 18 August 2026.</p>
+<p><b>Preprints — the current work.</b></p>
 <ul>
-<li><b>2025 —</b> <i>TRIDENT: A Redundant Architecture for Caribbean-Accented Emergency Speech Triage.</i> arXiv:2512.10741 [cs.CL].</li>
-<li><b>2022 —</b> <i>In. To. COVID-19 socio-epidemiological co-causality.</i> Scientific Reports (Nature Portfolio).</li>
+<li><b>2026 —</b> <i>When Does Streaming Tool Use Help? Characterizing Tool-Intent Stabilization in Streaming Retrieval-Augmented Generation.</i> arXiv:2606.20113. Sole author. Measurement science on LLM systems, and the single item closest to what I do now — worth asking about on its own.</li>
+<li><b>2025 —</b> <i>TRIDENT: A Redundant Architecture for Caribbean-Accented Emergency Speech Triage.</i> arXiv:2512.10741 [cs.CL]. First author. A three-layer dispatcher-support architecture — accent-tuned ASR, LLM clinical entity extraction, and bio-acoustic distress detection feeding a three-dimensional queue-prioritisation matrix — running fully offline on a Raspberry Pi 5 for disaster scenarios. Its own abstract states that empirical validation on Caribbean emergency calls remains future work, and I label it a preprint every time.</li>
 </ul>
-<p>Internally, publishing is a habit rather than an event: versioned decision memos, reproduction commands, and results that stay replayable months later. Room to write and share what I learn is one of the things I look for in a role.</p>`},
+<p><b>Peer-reviewed journal articles.</b></p>
+<ul>
+<li><b>2025 —</b> Johnson, Galbraith, Gibson &amp; Coley. <i>Silent scars: interpersonal sensitivity, paranoid ideation, and hostility from adverse childhood experiences in Jamaica.</i> Frontiers in Psychology.</li>
+<li><b>2023 —</b> Wang, Galbraith &amp; Convertino. <i>Algal Bloom Ties: Spreading Network Inference and Extreme Eco-Environmental Feedback.</i> Entropy. Cited by ten.</li>
+<li><b>2022 —</b> Galbraith, Li, Del Rio-Vilas &amp; Convertino. <i>In.To. COVID-19 socio-epidemiological co-causality.</i> Scientific Reports (Nature Portfolio). First author — an interactive infoveillance system forecasting healthcare pressure from social-media sentiment combined with epidemiological data. Code is public.</li>
+<li><b>2022 —</b> Galbraith, Frade &amp; Convertino. <i>Metabolic shifts of oceans: Summoning bacterial interactions.</i> Ecological Indicators. First author.</li>
+<li><b>2021 —</b> Galbraith &amp; Convertino. <i>The Eco-Evo Mandala: Simplifying Bacterioplankton Complexity into Ecohealth Signatures.</i> Entropy. First author. Cited by ten.</li>
+</ul>
+<p><b>Peer-reviewed conference proceedings.</b> <i>Risky Blooms: Space-Time Chlorophyll-a Analysis and Forecasting</i> (ISCIT 2023), and <i>On Structure, Function and Services of Ocean Bacterioplankton</i> (ICCS 2020, Amsterdam — oral and proceedings, first author).</p>
+<p><b>Thesis.</b> <i>Whispers in Murky Waters: Bacterioplankton Interaction Networks Underpinning Ecosystem Health.</i> Ph.D. dissertation, Hokkaido University, 2022.</p>
+<p><b>Policy report.</b> McFee &amp; Galbraith (2016), <i>The Developmental Cost of Homophobia: The Case of Jamaica.</i> Cited by fifteen — my most-cited work. It is a development-economics policy report, not a peer-reviewed article, and I label it that way.</p>
+<p>The published record is peer-reviewed work in inference, network reconstruction and information-theoretic signal extraction — now pointed at LLM systems. Internally, publishing is a habit rather than an event: versioned decision memos, reproduction commands, and results that stay replayable months later.</p>`},
+
+{cat:"Research & service", q:"What is your most recent paper about?", k:"streaming rag tool use latency stabilization crag benchmark 2026 preprint sole author arxiv 2606 newest latest paper strongest speculative retrieval",
+a:`<p><i>When Does Streaming Tool Use Help? Characterizing Tool-Intent Stabilization in Streaming Retrieval-Augmented Generation</i> — arXiv:2606.20113, 2026, sole author. It is the strongest single item on my record for the work I want to do next, because it is measurement science on LLM systems rather than a system paper.</p>
+<p><b>The problem.</b> Streaming RAG issues a tool query in parallel with an utterance that is still being spoken, so the query is speculative. The question is when that speculative retrieval converges on answer-bearing results — the point I call tool-intent stabilization — because that is what determines how much tool latency you can hide behind the user's own speech.</p>
+<p><b>What it does.</b> On the CRAG benchmark (1,371 validation questions) it measures the stabilization distribution, derives a model-agnostic bound on hideable tool latency, validates that bound against working pipelines, and identifies which query properties predict early versus late stabilization. At realistic parameters, 73.9% of queries admit substantial latency hiding. Gold evidence becomes retrievable early while lexical top-1 settles late. Entity position, not reasoning complexity, predicts stabilization timing.</p>
+<p><b>Why I point to it.</b> Note what it does that a marketing-shaped paper would not. It reports its effect size for question type as statistically significant but modest. It decomposes the headline 73.9% into its sufficiency and fallback parts instead of quoting the flattering aggregate. And it derives a bound you can use before deployment rather than after. Same discipline as the product work, in peer-facing form.</p>`},
+
+{cat:"Research & service", q:"Do you hold any research leadership roles?", k:"jamaica ai association jaia vice chair research committee elected service volunteer voluntary community outside day job besides spare time extracurricular national policy task force mentoring interns caribvoices project iris",
+a:`<p>Yes. In August 2026 I was <i>elected</i> Vice Chair of the Research Committee at the Jamaica AI Association. Elected, not appointed — it is standing conferred by peers, and I say the word deliberately.</p>
+<p><b>The remit is the job description I am applying for.</b> Designing and executing AI research and R&amp;D, and mentoring the interns who run it. It is the same work I want to do full time; I am currently doing it voluntarily.</p>
+<p><b>The organisation is a real research body, not a networking group.</b> JAIA was formally registered in 2023, has more than 200 members, and holds representation on Jamaica's National AI Task Force, which is running the country's first national AI policy framework. Its members publish — the Jamaican Patois music-transcription ASR work (arXiv:2507.16834) is JAIA-affiliated across all four authors and built a manually transcribed 40-plus-hour Patois corpus with fine-tuned models and derived scaling laws. Named initiatives include Project IRIS, on sovereign AI reflecting Jamaica's values and priorities, and CaribVoices, on Caribbean speech datasets.</p>
+<p>It converges with my own TRIDENT preprint into one research programme: Caribbean-context speech and language AI, a defensible niche rather than a generic ML profile. And it answers the leadership question without a management title — mentoring researchers is evidence I can grow a team, without committing me to a people-management ladder.</p>`},
+
+{cat:"Research & service", q:"Can I see any of your code?", k:"open source github repo repos public code codebase portfolio inspect see look read browse anywhere link show me side projects valuation lightgbm champion challenger fin-jepa xbrl statutory declaration triage stars",
+a:`<p>Some, and it matters that it is inspectable — none of the four production systems above are public, so the repositories are the only place you can read my design judgment directly rather than take my word for it.</p>
+<ul>
+<li><b>Automated property valuation with champion/challenger governance.</b> A LightGBM champion, a Ridge challenger and an evolved third model for residential mortgage-collateral valuation. Challengers score in shadow and disagreement is flagged for human review rather than averaged away. MAPE 7.9%, R² 0.94, about 40 ms inference. IVS 103 / RICS Red Book reports grounded in an audit ledger with LLM guardrails. FastAPI, Postgres, React, Terraform, GCP.</li>
+<li><b>Statutory declaration triage</b> — built against a <i>fictional</i> integrity commission, which I state plainly so it does not read as a government contract. Two-layer screening: hard rule tripwires plus weighted risk scoring, with officer case management. The design principle is the one from the underwriting engine restated in a different domain — deterministic rules decide, AI only assists and never writes to flags, scores or determinations. Append-only audit logs; every fired flag persists its triggering rule version. Two independent builds on one principle is a conviction, not a coincidence.</li>
+<li><b>fin-jepa</b> — self-supervised representation learning on SEC XBRL for distress prediction, with a pre-registered pass criterion and multi-seed variance estimation. I am holding this one back from the headline list for a specific reason: the gate result is not published yet, and I will not present a pre-registered study as evidence until I report the outcome, pass or fail.</li>
+</ul>
+<p><b>The honest caveat, which I would rather say than have noticed.</b> Every one of these repositories has zero stars and all were created between June and August 2026. A sharp reviewer reads a two-month burst as portfolio-building during a job search, and that reading is correct. They are evidence of design judgment, not of adoption or impact, and I will not present them as anything else.</p>`},
 
 /* ---------------- SKILLS ---------------- */
 
 {cat:"Skills", q:"What is your technical stack?", k:"stack tech technologies tools languages frameworks python aws experience with skills technical",
-a:`<p><b>Languages and core.</b> Python (FastAPI, PyTorch, scikit-learn), advanced SQL, TypeScript/React.</p>
+a:`<p><b>Languages and core.</b> Python (FastAPI, PyTorch, scikit-learn, LightGBM), advanced SQL, TypeScript/React.</p>
 <p><b>AI and agents.</b> DSPy, agentic tool-use architectures, RAG and per-domain retrieval, LLM-as-judge evaluation, prompt versioning, Langfuse tracing. Model families: Claude on Amazon Bedrock, Gemini, and cross-vendor setups by design.</p>
 <p><b>Data.</b> Postgres, Snowflake, BigQuery, dbt, Kimball / star-schema modelling, Prefect orchestration.</p>
-<p><b>Infrastructure.</b> AWS (ECS, Lambda, Step Functions, S3, Textract), Terraform, Docker, GitHub Actions.</p>
+<p><b>Infrastructure.</b> AWS (ECS, Lambda, Step Functions, S3, Textract), GCP, Terraform, Docker, GitHub Actions.</p>
 <p>I care much less about which framework than about whether the system can be replayed, measured, and rolled back.</p>`},
 
 {cat:"Skills", q:"How much financial domain knowledge do you have?", k:"finance financial domain credit risk underwriting valuation banking fintech quant economics knowledge industry",
@@ -218,7 +264,7 @@ a:`<p>Substantial, and from three directions.</p>
 
 {cat:"Skills", q:"What is your education?", k:"education degree phd doctorate university study academic masters msc hokkaido qualification",
 a:`<ul>
-<li><b>Ph.D., Information Science and Technology</b> — Hokkaido University, Japan, 2019–2022. Specialised in complex systems and big-data decision-making.</li>
+<li><b>Ph.D., Information Science and Technology</b> — Hokkaido University, Japan, 2019–2022. Specialised in complex systems and big-data decision-making. Dissertation: <i>Whispers in Murky Waters: Bacterioplankton Interaction Networks Underpinning Ecosystem Health</i> — network reconstruction and information-theoretic signal extraction from noisy observational data.</li>
 <li><b>M.Sc., Sociology (Economic Development)</b> — University of the West Indies, Jamaica, 2011–2013. Economic modelling and social data analysis.</li>
 </ul>
 <p>The through-line from the PhD to the work I do now is causality and measurement under uncertainty in messy systems. It is the same instinct that makes me distrust an evaluation before I trust it.</p>`},
@@ -234,19 +280,20 @@ a:`<p>Production, with real consequences attached.</p>
 <li>A Japanese-language support agent answering real customers on live chat and email.</li>
 <li>A financial question-answering system serving stock-exchange data with cited provenance, load-tested and monitored.</li>
 </ul>
-<p>All three carry the unglamorous parts: CI gates, tracing, cost caps, rollback paths, monitoring, and replayable prompt versioning. Prototypes are the easy half.</p>`},
+<p>All three carry the unglamorous parts: CI gates, tracing, cost caps, rollback paths, monitoring, and replayable prompt versioning. Prototypes are the easy half. None of the three is public, though, which is a real limit on what you can verify from outside — if you want something you can read rather than take on trust, ask about my open-source repositories instead.</p>`},
 
 /* ---------------- FIT & LOGISTICS ---------------- */
 
 {cat:"Fit & logistics", q:"Where are you based, and will you relocate?", k:"location where live based relocate relocation move city country japan sapporo tokyo remote onsite",
-a:`<p>I am based in Japan, working between Sapporo and Tokyo. I am open to relocating internationally for the right role, and open to hybrid arrangements.</p>
+a:`<p>I am based in Sapporo, Japan. My full-time role is with a Tokyo company, so I already work at distance from the office. I am open to relocating internationally for the right role, and open to hybrid arrangements.</p>
 <p>What I want from the arrangement: hybrid, within reach of a major city, and stable enough outside work that I show up with real energy inside it. Fully remote is workable; fully on-site five days a week in a distant city is a harder conversation, not an impossible one.</p>`},
 
 {cat:"Fit & logistics", q:"What is your work-authorization situation?", k:"visa sponsorship work permit authorization immigration eligible legally authorised right to work green card lmia gts",
 a:`<p>Plainly: I currently live and work in Japan. For a role in any other country I will need visa sponsorship.</p>
 <p>Two things worth knowing before that becomes a reason to stop reading:</p>
 <ul>
-<li><b>My profile fits the fast routes.</b> A PhD, senior technical experience, and an in-demand occupation are what most skilled-worker and fast-track programmes are built for. With an employer who has sponsored before, this is usually weeks of paperwork rather than an open-ended risk.</li>
+<li><b>My profile fits the fast routes.</b> A Ph.D., senior technical experience, and an in-demand occupation are what most skilled-worker and fast-track programmes are built for. With an employer who has sponsored before, this is usually weeks of paperwork rather than an open-ended risk.</li>
+<li><b>The recognition-based routes have something to work with.</b> A published research record and a named national-level position — elected Vice Chair of the Jamaica AI Association's Research Committee — are the kind of evidence recognition-based routes such as Canada's Global Talent Stream weigh. I am not an immigration lawyer and I would not present that as legal advice; it is a reason for the conversation to be short rather than long.</li>
 <li><b>I am pursuing offer-independent routes in parallel.</b> Several countries have points-based skilled-migration paths my qualifications may satisfy without a job offer. If one lands, sponsorship stops being a dependency at all.</li>
 </ul>
 <p>Tell me the country and I will be specific about the route on a call.</p>`},
