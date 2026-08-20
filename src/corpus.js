@@ -9,7 +9,7 @@ const PROFILE = {
   name: "Elroy Galbraith, Ph.D.",
   tagline: "Applied AI / ML Engineer &amp; AI Evaluation Scientist — financial ML + production LLM systems",
   email: "elroy.galbraith@gmail.com",
-  linkedin: "https://www.linkedin.com/in/elroygalbraith",
+  linkedin: "https://www.linkedin.com/in/elroy-galbraith-27965356",
   location: "Sapporo, Japan"
 };
 
@@ -323,7 +323,7 @@ a:`<p>Timing depends on notice and, for a role outside Japan, on the visa route 
 
 {cat:"Fit & logistics", q:"How do I contact you?", k:"contact email reach linkedin get in touch hire apply talk call schedule resume cv",
 a:`<p>Email is best: <a href="mailto:elroy.galbraith@gmail.com">elroy.galbraith@gmail.com</a></p>
-<p>LinkedIn: <a href="https://www.linkedin.com/in/elroygalbraith" target="_blank" rel="noopener">linkedin.com/in/elroygalbraith</a></p>
+<p>LinkedIn: <a href="https://www.linkedin.com/in/elroy-galbraith-27965356" target="_blank" rel="noopener">linkedin.com/in/elroy-galbraith-27965356</a></p>
 <p>Ask by email for my CV or phone number and I will send them. If you have a role in mind, include the answer to one question and you will get a fast reply: <i>who owns taking a working system to production and maintaining it long-term?</i></p>`},
 
 {cat:"Fit & logistics", q:"Are you a real person or is this an AI?", k:"real ai bot chatbot who built this human are you elroy fake generated automated how does this work",
