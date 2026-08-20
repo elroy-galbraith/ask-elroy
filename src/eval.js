@@ -3,7 +3,8 @@
 const IDS = ["intro","differentiator","role-wanted","filter-question",
 "yoii-current","odin","odin-eval","negative-results","support-agent","conv-eval",
 "aeon","jse-chatbot","extraction-pipeline","silent-bugs","economist","career-timeline","team-scale",
-"ic-vs-manager","how-decide","risk-guardrails","communication","weaknesses","publications",
+"ic-vs-manager","how-decide","risk-guardrails","communication","weaknesses",
+"publications","streaming-rag","jaia","open-source",
 "stack","finance-domain","education","languages","production-llm",
 "location","visa","salary","why-move","five-years","company-fit","start-date","contact","is-this-ai"];
 
@@ -36,6 +37,15 @@ const GOLDEN = [
  ["can he present to business stakeholders","communication"],
  ["what is he bad at","weaknesses"],
  ["has he published any papers","publications"],
+ ["how many citations does he have","publications"],
+ ["what is his h index","publications"],
+ ["is his research peer reviewed or just preprints","publications"],
+ ["what is his newest paper about","streaming-rag"],
+ ["streaming retrieval augmented generation tool latency","streaming-rag"],
+ ["is he involved in the wider ai community","jaia"],
+ ["does he do anything outside his day job","jaia"],
+ ["can i look at his code anywhere","open-source"],
+ ["does he have public github repositories","open-source"],
  ["which frameworks and cloud does he use","stack"],
  ["does he understand credit and financial services","finance-domain"],
  ["what did he study at university","education"],
@@ -63,6 +73,10 @@ const GOLDEN = [
  ["did he ever kill his own feature","negative-results"],
  ["what happens after he hands a system over","role-wanted"],
  ["arxiv paper","publications"],
+ ["sole authored 2026 preprint","streaming-rag"],
+ ["elected vice chair","jaia"],
+ ["side projects","open-source"],
+ ["property valuation model lightgbm","open-source"],
  ["n4 jlpt","languages"],
  ["what is his exact current salary in yen","salary"]
 ];
@@ -93,6 +107,10 @@ const CONV_GOLDEN = [
     follow: "tell me more",        expect: "education",      label: "education → tell me more" },
   { prior: "has he built a rag system over financial documents",
     follow: "what technology did he use", expect: "jse-chatbot", label: "jse chatbot → technology" },
+  { prior: "is he involved in the wider ai community",
+    follow: "tell me more",        expect: "jaia",           label: "jaia → tell me more" },
+  { prior: "can i look at his code anywhere",
+    follow: "any caveats",         expect: "open-source",    label: "open source → caveats" },
   /* ---- stop-word-heavy follow-ups (high raw count, low content count) ---- */
   { prior: "what is he doing right now",
     follow: "what did he do before that",
