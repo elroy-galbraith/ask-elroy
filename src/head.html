@@ -103,13 +103,7 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
 /* --- small utility --- */
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 
-/* --- fit panel --- */
-.fit-layout{ display:flex; flex-direction:column; gap:20px; margin-bottom:8px }
-@media (min-width:920px){
-  .fit-layout{ flex-direction:row; align-items:flex-start }
-  .fit-layout > .fit-panel{ flex:0 0 320px }
-  .fit-layout > div:last-child{ flex:1 1 auto; min-width:0 }
-}
+/* --- fit panel — lives in the chat sidebar, stays on screen as the thread grows --- */
 .fit-panel{ border:1px solid var(--color-accent); padding:16px 18px; font-size:13px }
 .fit-panel-head{ display:flex; align-items:baseline; gap:10px; margin-bottom:14px; flex-wrap:wrap }
 .fit-tier{ font-weight:700; font-size:15px; letter-spacing:.02em }
@@ -135,7 +129,7 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
   #header-grid>div:last-child{flex-direction:row !important;align-items:center !important;gap:16px !important;justify-content:flex-start !important}
   #pname{font-size:32px !important}
   #pane-chat{grid-template-columns:1fr !important}
-  #pane-chat>aside{position:static !important}
+  #pane-chat>aside{position:static !important;order:-1}
   #trace-grid{grid-template-columns:1fr !important}
   #eval-cards{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
   #eval-retrieval-grid{grid-template-columns:1fr !important}
@@ -167,7 +161,8 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
       <div class="eyebrow">ask-elroy — a grounded RAG agent over a corpus he wrote</div>
       <h1 id="pname" style="font-size:54px;margin:0 0 4px;letter-spacing:-.02em;font-weight:700"></h1>
       <div id="ptag" style="font-size:17px;color:color-mix(in srgb,var(--color-text) 68%,transparent)"></div>
-      <p style="font-size:16px;line-height:1.65;color:var(--color-dim);margin:14px 0 22px;max-width:52ch;text-wrap:pretty">I answer questions about Elroy's experience, projects, and what he's looking for next — grounded in what he wrote about himself. Every answer shows exactly where it came from.</p>
+      <p style="font-size:16px;line-height:1.65;color:var(--color-dim);margin:14px 0 10px;max-width:56ch;text-wrap:pretty">Hi there. I'm a conversational assistant built by Elroy to help you get to know him &mdash; his experience, projects, skills, and what he's looking for next.</p>
+      <p style="font-size:16px;line-height:1.65;color:var(--color-dim);margin:0 0 22px;max-width:56ch;text-wrap:pretty">Ask me anything. Every answer comes straight from what Elroy wrote about himself, and I'll show you exactly where each answer came from. If I don't have it, I'll tell you that too.</p>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         <button class="btn btn-primary blueprint" id="hero-chat" style="padding:12px 28px;font-size:15px">
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
@@ -446,7 +441,7 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
   </div>
 
   <!-- ===== CHAT PANEL ===== -->
-  <div id="pane-chat" style="display:grid;grid-template-columns:minmax(0,1fr) 292px;gap:38px;align-items:start;padding-bottom:200px">
+  <div id="pane-chat" style="display:grid;grid-template-columns:minmax(0,1fr);gap:38px;align-items:start;padding-bottom:200px">
     <div style="min-width:0">
 
       <!-- read-me -->
@@ -457,8 +452,8 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
           <span class="section-label" style="margin:0">Read me first</span>
         </summary>
         <div style="margin-top:12px">
-          <p style="margin:0 0 8px;font-size:15.5px;max-width:64ch;text-wrap:pretty">I answer recruiter questions about Elroy — his experience, how he works, his stack, and what he wants next — from a fixed corpus he wrote about his own work.</p>
-          <p style="margin:0;font-size:15.5px;max-width:64ch;text-wrap:pretty;color:color-mix(in srgb,var(--color-text) 70%,transparent)">Every answer carries the passages it was built from and a full trace. Below the scope gate I refuse before any model call, so an out-of-scope question costs nothing and cannot be answered wrongly.</p>
+          <p style="margin:0 0 8px;font-size:15.5px;max-width:78ch;text-wrap:pretty">I answer recruiter questions about Elroy — his experience, how he works, his stack, and what he wants next — from a fixed corpus he wrote about his own work.</p>
+          <p style="margin:0;font-size:15.5px;max-width:78ch;text-wrap:pretty;color:color-mix(in srgb,var(--color-text) 70%,transparent)">Every answer carries the passages it was built from and a full trace. Below the scope gate I refuse before any model call, so an out-of-scope question costs nothing and cannot be answered wrongly.</p>
         </div>
       </details>
 
@@ -469,30 +464,9 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
       <div id="suggest" style="margin-top:32px"></div>
     </div>
 
-    <!-- sidebar -->
-    <aside style="position:sticky;top:24px;display:grid;gap:18px">
-      <div class="blueprint" style="padding:16px" id="sidebar-last">
-        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-        <div class="section-label" style="margin-bottom:11px">Last question</div>
-        <div class="mono" style="display:grid;gap:6px;font-size:12px">
-          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">mode</span><span id="sb-mode">—</span></div>
-          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">confidence</span><span id="sb-conf">—</span></div>
-          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">gate</span><span id="sb-gate">—</span></div>
-          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">decision</span><span id="sb-decision">—</span></div>
-          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">retrieve</span><span id="sb-retrieve">—</span></div>
-          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">cost</span><span id="sb-cost">—</span></div>
-        </div>
-      </div>
-      <div class="blueprint" style="padding:16px" id="sidebar-session">
-        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-        <div class="section-label" style="margin-bottom:11px">Session</div>
-        <div class="mono" style="display:grid;gap:6px;font-size:12px">
-          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">answers</span><span id="sb-gens">0 / 40</span></div>
-          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">tokens</span><span id="sb-toks">0 / 0</span></div>
-          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">spend</span><span id="sb-spend">$0.00000</span></div>
-        </div>
-        <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Nothing you type is stored. No session state on the server; a refresh clears the thread.</p>
-      </div>
+    <!-- fit slot — empty until a fit check runs, then the scorecard stays here beside the thread -->
+    <aside id="chat-aside" style="display:none;position:sticky;top:24px">
+      <div class="fit-panel" id="chat-fit-panel"></div>
     </aside>
   </div>
 
@@ -542,14 +516,26 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
           <div class="section-label" style="margin-bottom:11px">Gate &amp; grounding</div>
           <div class="mono" style="display:grid;gap:6px;font-size:12px" id="trace-gate">
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">mode</span><span id="tg-mode">—</span></div>
             <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">max cosine</span><span id="tg-conf">—</span></div>
             <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">scope gate</span><span id="tg-gate">—</span></div>
             <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">decision</span><span id="tg-decision">—</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">retrieve</span><span id="tg-retrieve">—</span></div>
             <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">citations</span><span id="tg-citations">—</span></div>
             <div style="display:flex;justify-content:space-between;border-top:1px solid var(--color-divider);padding-top:6px"><span style="color:var(--color-dim)">tokens</span><span id="tg-tokens">—</span></div>
             <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">cost</span><span id="tg-cost">—</span></div>
           </div>
           <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Invalid citation indices and uncited claims are flagged in the answer itself, never hidden. Below the gate the agent refuses before the model call, so the refusal is free.</p>
+        </div>
+        <div class="blueprint" style="padding:16px" id="sidebar-session">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div class="section-label" style="margin-bottom:11px">Session</div>
+          <div class="mono" style="display:grid;gap:6px;font-size:12px">
+            <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">answers</span><span id="sb-gens">0 / 40</span></div>
+            <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">tokens</span><span id="sb-toks">0 / 0</span></div>
+            <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">spend</span><span id="sb-spend">$0.00000</span></div>
+          </div>
+          <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Nothing you type is stored. No session state on the server; a refresh clears the thread.</p>
         </div>
       </div>
     </div>
