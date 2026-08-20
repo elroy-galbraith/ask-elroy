@@ -1995,7 +1995,7 @@ async function boot(){
   if(qEl){ qEl.disabled = true; qEl.placeholder = "Loading embedding model…"; }
   if(sbEl) sbEl.disabled = true;
 
-  showTab("fit");
+  showTab(null);
 
   state.passages = buildPassages();
   state.bm25 = buildBM25(state.passages);
@@ -2030,6 +2030,8 @@ async function boot(){
   if(qEl){ qEl.disabled = false; qEl.placeholder = "Ask about his work, his stack, work authorization, what he wants next…"; }
   if(sbEl) sbEl.disabled = false;
   dismissOverlay();
+  const strip = $("#status-strip");
+  if(strip) strip.style.display = "none";
   state.ready = true;
   updateSessionSidebar();
   updateGenCostEst();
