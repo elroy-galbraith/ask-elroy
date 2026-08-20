@@ -47,6 +47,44 @@ RULES — these are absolute.
 
 const MAX_FIT_PASSAGES = 200;
 
+const FIT_TIERS = {
+  strong: 72,      // overall >= strong  -> "Strong fit"
+  moderate: 50,    // overall >= moderate -> "Moderate fit", else "Partial fit"
+  contested: 30,   // |advocate - skeptic| >= contested -> contested flag
+  gapBelow: 40     // midpoint < gapBelow -> gap flag
+};
+
+function clampScore(n) {
+  n = Number(n);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+export function reconcile(rubric, skeptic, advocate, cfg = FIT_TIERS) {
+  const sMap = new Map((skeptic || []).map(s => [String(s.id), s]));
+  const aMap = new Map((advocate || []).map(a => [String(a.id), a]));
+  let wsum = 0, acc = 0;
+  const criteria = (rubric || []).map(c => {
+    const s = sMap.get(String(c.id)) || {};
+    const a = aMap.get(String(c.id)) || {};
+    const skep = clampScore(s.score), adv = clampScore(a.score);
+    const midpoint = Math.round((skep + adv) / 2);
+    const weight = [1, 2, 3].includes(Number(c.weight)) ? Number(c.weight) : 2;
+    wsum += weight; acc += weight * midpoint;
+    return {
+      id: c.id, label: c.label, weight,
+      skeptic: skep, advocate: adv, midpoint,
+      contested: Math.abs(adv - skep) >= cfg.contested,
+      gap: midpoint < cfg.gapBelow || s.gap === true || a.gap === true,
+      skepticNote: String(s.note || ''), advocateNote: String(a.note || '')
+    };
+  });
+  const overall = wsum ? Math.round(acc / wsum) : 0;
+  const tier = overall >= cfg.strong ? 'Strong fit'
+             : overall >= cfg.moderate ? 'Moderate fit' : 'Partial fit';
+  return { overall, tier, criteria };
+}
+
 const cors = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET, POST, OPTIONS",
