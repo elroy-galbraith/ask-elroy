@@ -553,10 +553,16 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
       </div>
 
       <!-- stat cards -->
-      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:30px" id="eval-cards">
+      <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;margin-bottom:30px" id="eval-cards">
         <div class="blueprint" style="padding:14px 16px">
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-          <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)" id="ec-r1-label">Retrieval hit@5</div>
+          <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)" id="ec-r5-label">Retrieval hit@5</div>
+          <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px" id="ec-r5-val">—</div>
+          <div style="font-size:11.5px;color:var(--color-dim)" id="ec-r5-note">not run yet</div>
+        </div>
+        <div class="blueprint" style="padding:14px 16px">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)" id="ec-r1-label">Retrieval hit@1</div>
           <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px" id="ec-r1-val">—</div>
           <div style="font-size:11.5px;color:var(--color-dim)" id="ec-r1-note">not run yet</div>
         </div>
