@@ -1,6 +1,7 @@
 {
   "type": "module",
   "devDependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "playwright": "^1.62.1"
   }
 }

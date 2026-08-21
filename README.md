@@ -77,19 +77,24 @@ Two gates exist, because the two retrieval modes separate differently:
 
 ## Develop it
 
-`index.html` is a build artifact. Do not edit it — edit the sources and rebuild.
+`index.html` and `src/vectors.js` are build artifacts. Do not edit them — edit the
+sources and rebuild.
 
 ```
 ask-elroy/
-├── build.sh            concatenate src/* -> index.html, then syntax-check
+├── build.sh            embed if stale -> verify -> concatenate src/* -> syntax-check
 ├── index.html          the built app (this is what you deploy)
 ├── src/
 │   ├── head.html       markup, CSS, the "How this works" copy
 │   ├── corpus.js       PROFILE, CATS, BANK  <- everything the agent can say
 │   ├── eval.js         IDS, GOLDEN, OOS     <- the evaluation suites
-│   ├── engine.js       chunk, BM25, embeddings, hybrid retrieval, generation
+│   ├── chunk.js        strip, buildPassages  <- shared with tools/embed.mjs
+│   ├── vectors.js      GENERATED: int8 passage vectors + corpus checksum
+│   ├── engine.js       BM25, vector decode, embeddings, hybrid retrieval, generation
 │   ├── ui.js           chat, trace inspector, evaluation runner, boot
 │   └── tail.html       closing tags
+├── tools/
+│   └── embed.mjs       build-time: precompute src/vectors.js (dev dependency only)
 ├── worker/
 │   ├── worker.js       Cloudflare Worker: holds the key, streams generation
 │   └── wrangler.toml
@@ -103,9 +108,14 @@ The loop:
 ./build.sh                                  # rebuild after any src/ change
 open index.html                             # or: python3 -m http.server 8000
 
-npm i -D playwright && npx playwright install chromium   # once
+npm i -D playwright @huggingface/transformers && npx playwright install chromium   # once
 node test/smoke.mjs                         # headless check before you publish
 ```
+
+`./build.sh` regenerates `src/vectors.js` when the corpus, the doc IDs or the chunker have
+moved — that step needs network access to huggingface.co, and is a no-op otherwise. It
+fails the build outright, never with a warning, if the shipped vectors and the corpus
+disagree: the vectors are positional, so a mismatch corrupts retrieval silently.
 
 From the browser console, `askElroy` exposes the whole app — retune and re-measure
 without an edit-rebuild cycle:
