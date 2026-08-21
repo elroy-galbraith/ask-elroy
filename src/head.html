@@ -517,6 +517,14 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
           </div>
           <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Invalid citation indices and uncited claims are flagged in the answer itself, never hidden. Below the gate the agent refuses before the model call, so the refusal is free.</p>
         </div>
+        <div class="blueprint" style="padding:16px" id="sidebar-boot">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div class="section-label" style="margin-bottom:11px">Cold start</div>
+          <div class="mono" style="display:grid;gap:6px;font-size:12px" id="boot-timing">
+            <!-- filled by JS -->
+          </div>
+          <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Measured in this tab with <span class="mono">performance.measure()</span>, so the same marks show up in a browser profile. Four stages, because they fail for four different reasons.</p>
+        </div>
         <div class="blueprint" style="padding:16px" id="sidebar-session">
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
           <div class="section-label" style="margin-bottom:11px">Session</div>

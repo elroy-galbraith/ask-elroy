@@ -128,6 +128,39 @@ function updateTracePanel(trace){
   $("#tg-cost").textContent = trace.usage ? "$" + cost.toFixed(5) : "$0.00000";
 }
 
+/* ---- boot timing panel ----
+   The cold-start budget, split by stage. These are the numbers the
+   ship-to-client work is judged against, so they are on the page rather than
+   in a console log — same rule as the eval suite. */
+function fmtMs(ms){
+  if(ms === null || ms === undefined) return "—";
+  return ms >= 1000 ? (ms/1000).toFixed(2) + " s" : Math.round(ms) + " ms";
+}
+function updateBootPanel(){
+  const el = $("#boot-timing");
+  if(!el) return;
+  const st = bootPerf.stages;
+  const rows = [
+    ["CDN import()",  st.cdn,     "transformers.js off jsdelivr"],
+    ["model load",    st.model,   "ONNX weights fetch + compile"],
+    ["warm-up",       st.warmup,  "first forward pass"],
+    ["passage embed", st.embed,   state.passages.length + " passages"]
+  ];
+  const failed = bootPerf.attempts.filter(a => !a.ok);
+  el.innerHTML = rows.map(([k,v,note]) => `
+    <div style="display:flex;justify-content:space-between;gap:10px">
+      <span style="color:var(--color-dim)" title="${esc(note)}">${esc(k)}</span>
+      <span>${fmtMs(v)}</span>
+    </div>`).join("") + `
+    <div style="display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--color-divider);padding-top:6px">
+      <span style="color:var(--color-dim)">total to ready</span><span>${fmtMs(bootPerf.total || null)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;gap:10px">
+      <span style="color:var(--color-dim)">backend</span><span style="text-align:right">${esc(bootPerf.backend || state.mode)}</span>
+    </div>` +
+    (failed.length ? `<div style="font-size:11px;color:var(--color-warn);text-wrap:pretty">${failed.length} backend${failed.length>1?"s":""} failed first: ${failed.map(a => esc(a.label.split(" \u00b7 ").slice(1).join(" \u00b7 ")) + " (" + fmtMs(a.ms) + ")").join(", ")}</div>` : "");
+}
+
 /* ---- chat messages ---- */
 const logEl = $("#log");
 
@@ -938,16 +971,18 @@ async function boot(){
   renderSuggest(null);
   mountVisitorCard();
 
+  const t0 = performance.now();
   try{
     setBootMsg("Loading embedding model…");
     setStatus("loading embedding model…", "warn");
-    const t0 = performance.now();
     state.embedder = await loadEmbedder(txt => { setBootMsg(txt); setStatus(txt, "warn"); });
     setBootMsg("Building vector index…");
     setStatus("building vector index…", "warn");
-    state.vecs = await batchEmbed(state.passages.map(p => p.dense));
+    state.vecs = await timed("embed", batchEmbed(state.passages.map(p => p.dense)));
     state.mode = "hybrid";
     const ms = Math.round(performance.now()-t0);
+    bootPerf.total = ms;
+    updateBootPanel();
     setStatus("hybrid retrieval ready · generation " + (CONFIG.generatorUrl ? "on" : "off"), "ok");
     setStatusDetails(
       state.backend ? state.backend.split(" · ").slice(1).join(" · ") : "",
@@ -955,6 +990,8 @@ async function boot(){
     );
   } catch(e){
     state.mode = "lexical";
+    bootPerf.total = Math.round(performance.now() - t0);
+    updateBootPanel();
     setStatus("embedding model unavailable — degraded to BM25 lexical retrieval", "warn");
   }
 
@@ -969,6 +1006,6 @@ async function boot(){
   updateGenCostEst();
 }
 
-window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, looksLikeJobDescription,
+window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, looksLikeJobDescription, bootPerf,
   get busy(){ return busy; } };
 boot();
