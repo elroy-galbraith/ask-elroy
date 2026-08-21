@@ -51,6 +51,36 @@ exactly a cosine or the 0.34 scope gate quietly stops meaning what it was tuned 
 At 180 passages x 384 dims: 69,120 bytes raw, 92,160 base64. float32 would be 276,480 raw
 and 368,640 base64 — the fallback if int8 costs measurable retrieval quality.
 
+### Does int8 cost retrieval quality?
+
+This has to be answered by re-running the golden set against the real vectors — the fp32
+numbers (Hit@1 60%, Hit@5 96%, MRR 0.741) do not survive a change of quantisation, and if
+Hit@5 lands below 94% the answer is float32 and a 276 KB payload.
+
+Pending that, a simulation bounds the perturbation. Passage vectors are quantised; the
+query is not. Over 400 trials in R^384:
+
+| | |
+|---|---|
+| mean \|Δcos\| | 0.0018 |
+| p95 | 0.0043 |
+| max | 0.0067 |
+
+So a rank swap needs two passages within ~0.004 cosine of each other. Two things make that
+cheap when it happens:
+
+- Retrieval fuses by **rank**, not by score. A one-place move is worth
+  `1/61 - 1/62 = 0.00026` of fused score, and BM25 — which is not quantised at all — is the
+  other half of the fusion.
+- Simulating a realistic relevance spread (the expected doc at cos 0.45–0.70, a handful of
+  near-misses at 0.28–0.48, the rest in a tail below 0.25), the fp32 and int8 rankers gave
+  the identical Hit@5 verdict in 400 of 400 queries and the identical Hit@1 verdict in 399.
+
+Caveat, and the reason this is not a substitute for the measurement: MiniLM embeddings are
+anisotropic — real cosines cluster far higher and closer together than the simulation's do,
+which compresses exactly the gaps that matter. Treat this as "int8 is unlikely to be the
+thing that breaks Hit@5", not as evidence that it did not.
+
 ## The failure mode this design is built around
 
 The precomputed vectors are positional. Vector *i* is the embedding of passage *i*. If the
