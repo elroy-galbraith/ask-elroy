@@ -94,13 +94,15 @@ function updateTracePanel(trace){
 
   // pipeline
   const passCount = state.passages.length;
-  const g = gate();
+  const gateRule = state.mode === "hybrid"
+    ? "cosine ≥ " + CONFIG.scopeThreshold.toFixed(2) + " or coverage ≥ " + CONFIG.covThreshold.toFixed(2)
+    : "coverage ≥ " + CONFIG.lexThreshold.toFixed(2) + " (no dense arm until the model loads)";
   const pipeline = [
     {n:"01", name:"Chunk", detail:"paragraph and list-item level, title travels with the chunk", ms:"cached"},
     {n:"02", name:"Embed query", detail:"all-MiniLM-L6-v2 · WASM · q8", ms: trace.msEmbed ? Math.round(trace.msEmbed) + " ms" : "—"},
     {n:"03", name:"BM25 + dense", detail:"scored independently over " + passCount + " passages", ms: Math.round(trace.msRetrieve) + " ms"},
     {n:"04", name:"RRF fusion", detail:"reciprocal rank, k=60, no tuned weight", ms:"<1 ms"},
-    {n:"05", name:"Scope gate", detail:"max cosine vs " + g.toFixed(2) + ", before any model call", ms: trace.answered ? "pass" : "refuse"},
+    {n:"05", name:"Scope gate", detail: gateRule + ", before any model call", ms: trace.answered ? "pass" : "refuse"},
     {n:"06", name:"Generate + verify", detail:"worker holds the key; citations parsed and checked", ms: trace.answered ? (trace.msGen ? Math.round(trace.msGen) + " ms" : "ready") : "skipped"}
   ];
   $("#trace-pipeline").innerHTML = pipeline.map(p => `
@@ -117,8 +119,16 @@ function updateTracePanel(trace){
   const cost = trace.usage
     ? ((trace.usage.input_tokens/1e6)*CONFIG.price.in + (trace.usage.output_tokens/1e6)*CONFIG.price.out) : 0;
   $("#tg-mode").textContent = state.mode + (state.backend ? " · " + state.backend.split(" · ")[1] : "");
-  $("#tg-conf").textContent = trace.conf.toFixed(3);
-  $("#tg-gate").textContent = g.toFixed(2);
+  // Both arms are shown, and the one that carried the decision is marked, so the panel
+  // cannot imply a single-threshold gate that is no longer what runs.
+  const hybrid = state.mode === "hybrid";
+  const byCos = hybrid && trace.conf >= CONFIG.scopeThreshold;
+  const byCov = trace.cov >= (hybrid ? CONFIG.covThreshold : CONFIG.lexThreshold);
+  $("#tg-conf").textContent = hybrid ? trace.conf.toFixed(3) + (byCos ? " ✓" : "") : "—";
+  $("#tg-cov").textContent  = trace.cov.toFixed(3) + (byCov ? " ✓" : "");
+  $("#tg-gate").textContent = hybrid
+    ? "≥" + CONFIG.scopeThreshold.toFixed(2) + " or ≥" + CONFIG.covThreshold.toFixed(2)
+    : "≥" + CONFIG.lexThreshold.toFixed(2) + " cov";
   $("#tg-decision").textContent = trace.answered ? "answer" : "refuse";
   $("#tg-retrieve").textContent = Math.round(trace.msRetrieve) + " ms";
   $("#tg-citations").textContent = trace.ground
@@ -570,7 +580,6 @@ async function ask(text, opts){
   const t0 = performance.now();
   const r = await retrieve(retrievalQ);
   const msRetrieve = performance.now() - t0 - r.msEmbed;
-  const g = gate();
 
   // build trace object (partial — fill in more after generation)
   const trace = {
@@ -579,13 +588,28 @@ async function ask(text, opts){
       p: h.p, rrf: h.rrf, bm25: h.bm25, cos: h.cos,
       hit: toks(q).filter(t => h.p.text.toLowerCase().includes(t))
     })),
-    k: r.hits.length, conf: r.conf,
+    k: r.hits.length, conf: r.conf, cov: r.cov,
     msEmbed: r.msEmbed, msRetrieve, msGen: null,
-    answered: r.conf >= g, usage: null, ground: null
+    answered: r.inScope, usage: null, ground: null
   };
 
-  if(r.conf < g){
-    const meta = "cos " + r.conf.toFixed(3) + " < gate " + g.toFixed(2) + " · refused before the model call · $0.00000";
+  // Which arm admitted this question. Both meta lines below read from here so they cannot
+  // drift apart, and so a visitor can see that coverage alone can let a question through
+  // even when the cosine is unremarkable.
+  const admitBy = state.mode === "hybrid"
+    ? (r.conf >= CONFIG.scopeThreshold
+        ? "cos " + r.conf.toFixed(3) + " ≥ " + CONFIG.scopeThreshold.toFixed(2)
+        : "coverage " + r.cov.toFixed(3) + " ≥ " + CONFIG.covThreshold.toFixed(2))
+    : "coverage " + r.cov.toFixed(3) + " ≥ " + CONFIG.lexThreshold.toFixed(2);
+
+  if(!r.inScope){
+    // Both arms are named in the refusal meta: a visitor who is told "below the gate"
+    // should be able to see which signal was low, and they are low for different reasons.
+    const meta = (state.mode === "hybrid"
+        ? "cos " + r.conf.toFixed(3) + " < " + CONFIG.scopeThreshold.toFixed(2) +
+          " and coverage " + r.cov.toFixed(3) + " < " + CONFIG.covThreshold.toFixed(2)
+        : "coverage " + r.cov.toFixed(3) + " < " + CONFIG.lexThreshold.toFixed(2))
+      + " · refused before the model call · $0.00000";
     appendRefusal(meta);
     updateTracePanel(trace);
     if(CONFIG.generatorUrl){
@@ -600,7 +624,7 @@ async function ask(text, opts){
   }
 
   const passCount = state.passages.length;
-  const meta = "cos " + r.conf.toFixed(3) + " ≥ gate " + g.toFixed(2) + " · " + r.hits.length + " passages";
+  const meta = admitBy + " · " + r.hits.length + " passages";
   const msgEl = appendBotMsg("Answer", meta + " · retrieving…");
 
   if(CONFIG.generatorUrl && state.gens < CONFIG.maxGenPerSession){
@@ -634,7 +658,7 @@ async function ask(text, opts){
       const metaEl = msgEl.querySelector(".mono");
       if(metaEl){
         const cost = out.usage ? ((out.usage.input_tokens/1e6)*CONFIG.price.in + (out.usage.output_tokens/1e6)*CONFIG.price.out) : 0;
-        metaEl.textContent = "cos " + r.conf.toFixed(3) + " ≥ gate " + g.toFixed(2) + " · " + r.hits.length + " passages · $" + cost.toFixed(5);
+        metaEl.textContent = admitBy + " · " + r.hits.length + " passages · $" + cost.toFixed(5);
       }
 
       state.gens++;
@@ -702,10 +726,11 @@ async function runEval(){
   $("#eval-topk").textContent = k;
 
   if(!lexMode){
-    const gq = GOLDEN.map(g => g[0]), oq = OOS.map(o => o[0]);
-    const gv = await batchEmbed(gq), ov = await batchEmbed(oq);
+    const gq = GOLDEN.map(g => g[0]), oq = OOS.map(o => o[0]), pq = PARAPHRASE.map(p => p[0]);
+    const gv = await batchEmbed(gq), ov = await batchEmbed(oq), pv = await batchEmbed(pq);
     gq.forEach((q,i) => state.qcache.set(q, gv[i]));
     oq.forEach((q,i) => state.qcache.set(q, ov[i]));
+    pq.forEach((q,i) => state.qcache.set(q, pv[i]));
   }
 
   // retrieval suite
@@ -716,20 +741,33 @@ async function runEval(){
     const docs = []; r.hits.forEach(h => { if(!docs.includes(h.p.docId)) docs.push(h.p.docId); });
     const rank = docs.indexOf(want);
     const pass = rank > -1 && rank < k;      // the table's PASS rule — hit@k
-    confIn.push([r.conf, rank === 0]);
+    confIn.push([r.conf, r.cov, rank === 0]);
     if(rank === 0) r1++;
     if(pass) { r5++; mrr += 1/(rank+1); }
     evalRows.push({q, want, got: docs[0]||"—", rank, rr: rank > -1 ? 1/(rank+1) : 0, pass});
   }
   const n = GOLDEN.length;
 
+  // held-out paraphrase suite — same docs, phrasings the corpus never uses. Its queries
+  // join the gate-sweep population too: tuning the gate on GOLDEN alone is what produced
+  // a gate that refused golden queries with total term coverage.
+  let p1 = 0, p5 = 0;
+  for(const [q, want] of PARAPHRASE){
+    const r = await retrieve(q, k);
+    const docs = []; r.hits.forEach(h => { if(!docs.includes(h.p.docId)) docs.push(h.p.docId); });
+    const rank = docs.indexOf(want);
+    confIn.push([r.conf, r.cov, rank === 0]);
+    if(rank === 0) p1++;
+    if(rank > -1 && rank < k) p5++;
+  }
+
   // refusal suite
   let refused=0;
   const confOut = [], oosRows = [];
   for(const [q, kind] of OOS){
     const r = await retrieve(q, 3);
-    confOut.push(r.conf);
-    const pass = r.conf < gate();
+    confOut.push([r.conf, r.cov]);
+    const pass = !r.inScope;
     if(pass) refused++;
     oosRows.push({q, kind, conf: r.conf, pass});
   }
@@ -765,23 +803,53 @@ async function runEval(){
   $("#ec-r1-val").textContent = n ? Math.round(r1/n*100) + "%" : "—";
   $("#ec-r1-note").textContent = n ? r1 + " of " + n + " golden queries at rank 1" : "not run yet";
   $("#ec-mrr-val").textContent = n ? (mrr/n).toFixed(2) : "—";
+  const np = PARAPHRASE.length;
+  $("#ec-para-val").textContent = np ? Math.round(p5/np*100) + "%" : "—";
+  $("#ec-para-note").textContent = np ? p5 + " of " + np + " held-out phrasings, " + p1 + " at rank 1" : "held-out phrasings";
   $("#ec-ref-val").textContent = OOS.length ? Math.round(refused/OOS.length*100) + "%" : "—";
   $("#ec-ref-note").textContent = OOS.length ? refused + " of " + OOS.length + " probes refused" : "out-of-scope probes";
 
-  // sweep
-  const lo = lexMode ? 0.14 : 0.20, hi = lexMode ? 0.44 : 0.50;
+  // sweep — the swept axis is the dense arm; the lexical arm is held at its configured
+  // value, because that is the gate that actually runs. In lexical mode there is only
+  // one arm and the sweep is that arm.
+  //   confIn  rows are [cos, cov, wasRank1]
+  //   confOut rows are [cos, cov]
+  const covArm = lexMode ? null : CONFIG.covThreshold;
+  const nIn = confIn.length;                 // GOLDEN + PARAPHRASE, the population the gate must admit
+  const passes = (c, t) => lexMode ? c[1] >= t : (c[0] >= t || c[1] >= covArm);
+  const lo = lexMode ? 0.20 : 0.20, hi = lexMode ? 0.70 : 0.60;
   const sweepRows = [];
   for(let t=lo; t<=hi+1e-5; t+=0.02){
-    const answered = confIn.filter(c => c[0] >= t);
-    const correct = answered.filter(c => c[1]).length;
-    const ref = confOut.filter(c => c < t).length;
-    sweepRows.push({t, correct, ref, joint:(correct/n + ref/OOS.length)/2});
+    const answered = confIn.filter(c => passes(c, t));
+    const correct = answered.filter(c => c[2]).length;
+    const ref = confOut.filter(c => !passes(c, t)).length;
+    sweepRows.push({t, correct, ref, joint:(correct/nIn + ref/OOS.length)/2});
   }
   const bestJ = Math.max(...sweepRows.map(s => s.joint));
-  const curG = gate();
+
+  // What the second arm is worth, stated in the same units as the table: hold the
+  // refusal rate the live gate achieves, then ask how many in-scope questions a
+  // cosine-only gate could answer at that same rate. This is the whole argument for
+  // the two-signal rule, so it is measured on the page rather than asserted in a doc.
+  const liveAns = confIn.filter(c => passes(c, lexMode ? CONFIG.lexThreshold : CONFIG.scopeThreshold)).length;
+  const liveRef = confOut.filter(c => !passes(c, lexMode ? CONFIG.lexThreshold : CONFIG.scopeThreshold)).length;
+  let cosOnlyAns = null;
+  if(!lexMode){
+    for(let t=0.20; t<=0.80; t+=0.005){
+      const ref = confOut.filter(c => c[0] < t).length;
+      if(ref >= liveRef){ cosOnlyAns = confIn.filter(c => c[0] >= t).length; break; }
+    }
+  }
+  const note = $("#sweep-note");
+  if(note){
+    note.textContent = lexMode
+      ? `Lexical mode: coverage is the only signal, so the sweep is that signal. Live gate ${CONFIG.lexThreshold.toFixed(2)} answers ${liveAns}/${nIn} and refuses ${liveRef}/${OOS.length}.`
+      : `Live gate — cosine ≥ ${CONFIG.scopeThreshold.toFixed(2)} or coverage ≥ ${CONFIG.covThreshold.toFixed(2)} — answers ${liveAns}/${nIn} in-scope (golden + paraphrase), refuses ${liveRef}/${OOS.length}.` +
+        (cosOnlyAns !== null ? ` A cosine-only gate holding that same refusal rate answers ${cosOnlyAns}/${nIn}.` : "");
+  }
   $("#sweep-tbody").innerHTML = sweepRows.map(s => `<tr>
     <td class="mono" style="${s.joint===bestJ ? "color:var(--color-accent);font-weight:600" : "color:var(--color-dim)"}">${s.t.toFixed(2)}</td>
-    <td class="mono">${s.correct}/${n}</td>
+    <td class="mono">${s.correct}/${nIn}</td>
     <td class="mono">${s.ref}/${OOS.length}</td>
     <td class="mono" style="${s.joint===bestJ ? "color:var(--color-accent);font-weight:600" : ""}">${(s.joint*100).toFixed(0)}%</td>
   </tr>`).join("");
@@ -826,7 +894,7 @@ async function runGenEval(){
         const r = await retrieve(retrievalQ);
         if(turn.expect_refuse){
           results[model].push({scenario:scenario.label, turn:turn.q,
-            expect_refuse:true, refused_ok:r.conf < gate(), conf:r.conf});
+            expect_refuse:true, refused_ok:!r.inScope, conf:r.conf});
           break;
         }
         if(!turn.expect_doc){
@@ -837,7 +905,7 @@ async function runGenEval(){
           if(hist.length > 6) hist.splice(0,2);
           continue;
         }
-        if(r.conf < gate()){
+        if(!r.inScope){
           results[model].push({scenario:scenario.label, turn:turn.q,
             expect_doc:turn.expect_doc, gate_miss:true, conf:r.conf});
           break;
@@ -1068,6 +1136,6 @@ async function boot(){
   if(state.vecs.length) scheduleUpgrade();
 }
 
-window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, looksLikeJobDescription, bootPerf,
+window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, PARAPHRASE, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, looksLikeJobDescription, bootPerf,
   get busy(){ return busy; } };
 boot();

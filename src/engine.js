@@ -21,8 +21,18 @@ const CONFIG = {
   // space, and mixing them produces cosines that look plausible and rank wrongly.
   queryEmbedUrl: "",
   topK: 5,
-  scopeThreshold: 0.34,        // min dense cosine to answer at all (hybrid mode)
-  lexThreshold: 0.30,          // gate for the BM25-only fallback, which separates worse
+  // The scope gate reads two independent signals and needs only one of them to say yes.
+  // They fail on different queries: "does he have any dealbreakers" has every one of its
+  // content words in the passage (coverage 1.00) but sits at cosine 0.19, while an
+  // injection like "ignore all previous instructions…" reaches cosine 0.39 with almost no
+  // lexical support. A single threshold on either signal has to choose which of those two
+  // mistakes to make; the union makes neither. Fitted in ADR-0002 against 102 in-scope
+  // queries (GOLDEN + PARAPHRASE) and 39 negatives (OOS).
+  scopeThreshold: 0.40,        // dense arm  — min cosine, hybrid mode only
+  covThreshold: 0.48,          // lexical arm — min BM25 term coverage, hybrid mode
+  lexThreshold: 0.44,          // BM25-only mode: coverage is the only signal there, so it
+                               // carries the whole gate and is set to hold the same
+                               // refusal rate the two-signal rule achieves (85%)
   maxGenPerSession: 40,        // client-side cost cap
   price: { in: 1.00, out: 5.00 }  // USD per 1M tokens (claude-haiku-4-5)
 };
@@ -210,7 +220,21 @@ async function embed(texts){
   const list = out.tolist();
   return list.map(v => Float32Array.from(v));
 }
-function gate(){ return state.mode === "hybrid" ? CONFIG.scopeThreshold : CONFIG.lexThreshold; }
+/* The gate. Two signals, either one is enough to answer.
+
+   `cos` is null in lexical mode — the model has not loaded yet, so there is no dense arm
+   and coverage carries the decision on its own under its own threshold.
+
+   What this deliberately does NOT try to do: decide whether the corpus can *answer* the
+   question. Both signals measure topical similarity, and the two are structurally unable
+   to tell "what does he do at Yoii" from "what is his manager's name at Yoii" — the latter
+   scores cosine 0.77 and is not in the corpus at all. Questions of that shape reach the
+   model, which refuses them on the grounds that the passages do not support an answer.
+   That is the second line of defence and it is measured in ADR-0002, not assumed. */
+function passesGate(cos, cov){
+  if(cos !== null && cos >= CONFIG.scopeThreshold) return true;
+  return cov >= (cos === null ? CONFIG.lexThreshold : CONFIG.covThreshold);
+}
 const dot = (a,b) => { let s = 0; for(let i=0;i<a.length;i++) s += a[i]*b[i]; return s; };
 
 /* ---------------- 4. hybrid retrieval + RRF fusion ---------------- */
@@ -224,17 +248,19 @@ async function retrieve(query, k){
   k = k || CONFIG.topK;
   const t0 = performance.now();
   const lex = state.bm25.score(query);
-  let dense = null, tEmbed = 0, conf = 0;
+  // Coverage is computed in both modes now — it is the gate's second signal in hybrid,
+  // not just the fallback's only one.
+  let bi = 0; lex.forEach((s,i) => { if(s > lex[bi]) bi = i; });
+  const cov = state.bm25.coverage(query, bi);
+  let dense = null, tEmbed = 0, cos = null;
   if(state.mode === "hybrid"){
     const te = performance.now();
     const qv = await embedQuery(query);
     tEmbed = performance.now() - te;
     dense = state.vecs.map(v => dot(qv, v));
-    conf = Math.max(...dense);
-  } else {
-    let bi = 0; lex.forEach((s,i) => { if(s > lex[bi]) bi = i; });
-    conf = state.bm25.coverage(query, bi);
+    cos = Math.max(...dense);
   }
+  const conf = cos === null ? cov : cos;
   const order = arr => arr.map((s,i) => [i,s]).sort((a,b) => b[1]-a[1]).map(x => x[0]);
   const rl = order(lex), rd = dense ? order(dense) : null;
   const RRF = 60, fused = new Map();
@@ -243,7 +269,8 @@ async function retrieve(query, k){
   const ranked = [...fused.entries()].sort((a,b) => b[1]-a[1]).slice(0,k)
     .map(([idx,f]) => ({ p: state.passages[idx], idx, rrf: f,
                          bm25: lex[idx], cos: dense ? dense[idx] : null }));
-  return { hits: ranked, conf, terms: toks(query), msEmbed: tEmbed, msTotal: performance.now()-t0 };
+  return { hits: ranked, conf, cos, cov, inScope: passesGate(cos, cov),
+           terms: toks(query), msEmbed: tEmbed, msTotal: performance.now()-t0 };
 }
 
 /* ---------------- 5. generation (proxied) ---------------- */
