@@ -4,6 +4,17 @@
  *
  * Checks the paths that break silently: boot, an in-scope answer, a refusal,
  * a prompt injection, and the evaluation suite. It does NOT check answer quality.
+ *
+ * NOTHING IN THIS FILE MAY REACH THE PRODUCTION WORKER. index.html ships with a
+ * live CONFIG.generatorUrl, so every question this test asks used to hit the real
+ * endpoint: billing a real Anthropic call, and writing a row to the D1 question
+ * log. That log is the only record of what actual visitors ask, and it is what
+ * the retrieval and gate work is tuned against — 22 of its 28 refusals turned out
+ * to be this file's two probe strings. Test traffic in there is not noise around
+ * the signal, it outnumbers the signal.
+ *
+ * So the worker origin is stubbed below, before the first navigation. Real network
+ * access is asserted to be zero at the end of the run.
  */
 import { chromium } from 'playwright';
 import { fileURLToPath } from 'url';
@@ -14,6 +25,58 @@ const b = await chromium.launch();
 const p = await b.newPage();
 const errs = [];
 p.on('pageerror', e => errs.push('PAGEERROR: ' + e.message + '\n' + (e.stack || '')));
+
+// ---- Stub the worker: ONE handler owns the whole origin, so every worker-bound
+// request is accounted for and the "nothing escaped" check below is exact rather
+// than a guess about which route matched.
+const isWorker = u => u.hostname.endsWith('workers.dev') || u.hostname === 'stub.invalid';
+const stubbed = { generate: 0, log: 0, fit: 0, fitScore: 0 };
+const sse = body => ({ status: 200, contentType: 'text/event-stream; charset=utf-8', body });
+const json = body => ({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+
+await p.route(isWorker, route => {
+  const path = new URL(route.request().url()).pathname;
+  if (path === '/log') {
+    stubbed.log++;
+    return route.fulfill(json({ ok: true }));
+  }
+  if (path === '/fit/score') {
+    stubbed.fitScore++;
+    return route.fulfill(json({
+      overall: 63, tier: 'Moderate fit',
+      criteria: [
+        { id: 'c1', label: 'Cloud infra (Go)', weight: 3, skeptic: 40, advocate: 78, midpoint: 59, contested: true, gap: false, skepticNote: 'thin [2]', advocateNote: 'adjacent [2]' },
+        { id: 'c2', label: 'RAG / LLM systems', weight: 2, skeptic: 71, advocate: 88, midpoint: 80, contested: false, gap: false, skepticNote: 'ok [1]', advocateNote: 'strong [1]' },
+      ],
+    }));
+  }
+  if (path === '/fit') {
+    stubbed.fit++;
+    return route.fulfill(sse('data: {"choices":[{"delta":{"content":"Strong matches: solid overlap [1]."}}]}\n\ndata: [DONE]\n\n'));
+  }
+  stubbed.generate++;
+  // The shape the worker really emits, with a citation, so the streaming parser and
+  // the groundedness check are exercised rather than skipped.
+  return route.fulfill(sse(
+    'data: {"choices":[{"delta":{"content":"Stubbed answer for the smoke test [1]."}}]}\n\n' +
+    'data: {"usage":{"prompt_tokens":10,"completion_tokens":8}}\n\n' +
+    'data: [DONE]\n\n'
+  ));
+});
+
+// Every request the page makes, so the assertion at the end is about observed
+// traffic rather than about which route we think matched. Worker-bound requests
+// are counted and later reconciled against the stub counters; jsdelivr and
+// huggingface are the embedding model and are legitimate.
+let workerRequests = 0;
+const foreignOrigins = new Set();
+p.on('request', r => {
+  const u = new URL(r.url());
+  if (u.protocol === 'file:' || u.protocol === 'data:' || u.protocol === 'blob:') return;
+  if (isWorker(u)) { workerRequests++; return; }
+  if (u.hostname === 'cdn.jsdelivr.net' || u.hostname === 'huggingface.co' || u.hostname.endsWith('.hf.co')) return;
+  foreignOrigins.add(u.origin);
+});
 
 const tBoot = Date.now();
 await p.goto('file://' + root + '/index.html');
@@ -81,26 +144,12 @@ if (!tableAgrees.card.startsWith(tableAgrees.pass + ' of ')) {
   errs.push(`HIT@5 CARD: says "${tableAgrees.card}" but the table passes ${tableAgrees.pass} rows`);
 }
 
-// ---- Fit score panel (network stubbed; no live worker needed) ----
-await p.route('**/fit/score', route => route.fulfill({
-  status: 200,
-  contentType: 'application/json',
-  body: JSON.stringify({
-    overall: 63, tier: 'Moderate fit',
-    criteria: [
-      { id: 'c1', label: 'Cloud infra (Go)', weight: 3, skeptic: 40, advocate: 78, midpoint: 59, contested: true, gap: false, skepticNote: 'thin [2]', advocateNote: 'adjacent [2]' },
-      { id: 'c2', label: 'RAG / LLM systems', weight: 2, skeptic: 71, advocate: 88, midpoint: 80, contested: false, gap: false, skepticNote: 'ok [1]', advocateNote: 'strong [1]' },
-    ],
-  }),
-}));
-await p.route('**/fit', route => route.fulfill({
-  status: 200,
-  contentType: 'text/event-stream; charset=utf-8',
-  body: 'data: {"choices":[{"delta":{"content":"Strong matches: solid overlap [1]."}}]}\n\ndata: [DONE]\n\n',
-}));
-
-// A failed live generator call earlier in the run clears CONFIG.generatorUrl, which
-// would short-circuit the fit paths. The routes above answer it, so put it back.
+// ---- Fit score panel — the worker stub at the top of this file answers /fit and
+// /fit/score, so nothing here touches the network.
+// CONFIG.generatorUrl is cleared by the page whenever a generator call fails. With
+// the stub answering, that should no longer happen; restore it defensively so a
+// regression in the generate path fails the generate assertions rather than
+// silently disabling the fit paths too.
 await p.evaluate(() => { window.askElroy.CONFIG.generatorUrl ||= 'https://stub.invalid'; });
 
 await p.click('#tab-fit');
@@ -194,6 +243,21 @@ if (gateCheck.skipped) {
       errs.push(`GATE: "${name}" inScope=${got.inScope}, expected ${want} (cos ${got.conf}, cov ${got.cov})`);
     }
   }
+}
+
+// ---- Nothing may have reached the real worker ----
+// Every worker-bound request must have been answered by the stub above. If the two
+// counts disagree, some request took a path the stub does not cover and hit
+// production: a billed model call, and a junk row in the visitor question log.
+const stubTotal = stubbed.generate + stubbed.log + stubbed.fit + stubbed.fitScore;
+console.log('network   :', `worker requests ${workerRequests}, all stubbed (` +
+  `generate ${stubbed.generate}, log ${stubbed.log}, fit ${stubbed.fit}, score ${stubbed.fitScore})`);
+if (workerRequests !== stubTotal) {
+  errs.push(`PRODUCTION LEAK: ${workerRequests} worker requests but only ${stubTotal} were stubbed`);
+}
+if (!stubbed.generate) errs.push('STUB: no generate call was made — the generation path did not run');
+if (foreignOrigins.size) {
+  errs.push('UNEXPECTED EGRESS: ' + [...foreignOrigins].join(', '));
 }
 
 console.log('js errors :', errs.length ? errs : 'none');
