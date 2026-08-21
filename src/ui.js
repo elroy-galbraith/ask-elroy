@@ -140,20 +140,32 @@ function updateBootPanel(){
   const el = $("#boot-timing");
   if(!el) return;
   const st = bootPerf.stages;
+  const embedNote = state.vecs.length
+    ? "precomputed at build time — " + state.vecs.length + " x " + (typeof VECTORS !== "undefined" ? VECTORS.dim : "?") + " int8"
+    : state.passages.length + " passages, embedded in this tab";
   const rows = [
     ["CDN import()",  st.cdn,     "transformers.js off jsdelivr"],
     ["model load",    st.model,   "ONNX weights fetch + compile"],
     ["warm-up",       st.warmup,  "first forward pass"],
-    ["passage embed", st.embed,   state.passages.length + " passages"]
+    ["passage embed", state.vecs.length ? null : st.embed, embedNote]
   ];
   const failed = bootPerf.attempts.filter(a => !a.ok);
-  el.innerHTML = rows.map(([k,v,note]) => `
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;gap:10px">
+      <span style="color:var(--color-dim)" title="base64 -> int8 -> Float32Array, no network">decode vectors</span>
+      <span>${fmtMs(st.decode)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--color-divider);padding-bottom:6px">
+      <span style="color:var(--color-dim)">answerable at</span><span>${fmtMs(bootPerf.total || null)}</span>
+    </div>
+    <div style="font-size:11px;color:var(--color-dim);letter-spacing:.04em;text-transform:uppercase">dense upgrade, off the critical path</div>` +
+    rows.map(([k,v,note]) => `
     <div style="display:flex;justify-content:space-between;gap:10px">
       <span style="color:var(--color-dim)" title="${esc(note)}">${esc(k)}</span>
-      <span>${fmtMs(v)}</span>
+      <span>${state.vecs.length && k === "passage embed" ? "precomputed" : fmtMs(v)}</span>
     </div>`).join("") + `
     <div style="display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--color-divider);padding-top:6px">
-      <span style="color:var(--color-dim)">total to ready</span><span>${fmtMs(bootPerf.total || null)}</span>
+      <span style="color:var(--color-dim)">hybrid at</span><span>${bootPerf.upgrade ? fmtMs(bootPerf.upgrade + bootPerf.total) : "—"}</span>
     </div>
     <div style="display:flex;justify-content:space-between;gap:10px">
       <span style="color:var(--color-dim)">backend</span><span style="text-align:right">${esc(bootPerf.backend || state.mode)}</span>
@@ -542,6 +554,9 @@ async function ask(text, opts){
   }
 
   busy = true;
+  // First question also triggers the dense upgrade, without waiting on it: this
+  // answer is served lexically, the next one is likely to be hybrid.
+  ensureEmbedder().catch(() => {});
   appendUserMsg(q);
   $("#q").value = "";
 
@@ -672,6 +687,15 @@ async function batchEmbed(list){
 async function runEval(){
   const btn = $("#runeval");
   if(btn) btn.textContent = "Running…";
+
+  // The suite is the one place worth blocking on the model: the visitor asked for
+  // the hybrid numbers, and reporting lexical ones under the same headings would be
+  // the same class of mistake as the hit@5 card. Falls through if it cannot load.
+  if(state.mode !== "hybrid" && state.vecs.length){
+    if(btn) btn.textContent = "Loading model…";
+    await ensureEmbedder().catch(() => {});
+    if(btn) btn.textContent = "Running…";
+  }
 
   const lexMode = state.mode !== "hybrid";
   const k = CONFIG.topK;
@@ -943,7 +967,49 @@ if(submitBtn) submitBtn.onclick = () => ask($("#q").value);
 const qInput = $("#q");
 if(qInput) qInput.onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); ask(qInput.value); } };
 
-function setBootMsg(msg){ const el = $("#boot-msg"); if(el) el.textContent = msg; }
+/* ---- lazy dense upgrade ----
+   Everything below runs after the page is already answering questions. The model
+   is ~25 MB and is now needed for exactly one thing — embedding the query — so it
+   is never on the critical path. */
+let upgradePromise = null;
+
+function ensureEmbedder(){
+  if(upgradePromise) return upgradePromise;
+  if(!state.vecs.length) return Promise.reject(new Error("no passage vectors"));
+  upgradePromise = (async () => {
+    const t0 = performance.now();
+    try{
+      // Quietly: the headline stays "ready" the whole time, because it is. The
+      // upgrade progress goes in the detail slot, where it reads as extra rather
+      // than as the page still starting up.
+      state.embedder = await loadEmbedder(txt => setStatusDetails(txt.replace(/…$/, ""), state.passages.length + " passages · vectors precomputed"));
+      state.mode = "hybrid";
+      bootPerf.upgrade = performance.now() - t0;
+      setStatus("hybrid retrieval ready · generation " + (CONFIG.generatorUrl ? "on" : "off"), "ok");
+      setStatusDetails(
+        state.backend ? state.backend.split(" · ").slice(1).join(" · ") : "",
+        state.passages.length + " passages · dense index precomputed"
+      );
+      updateBootPanel();
+      return state.embedder;
+    } catch(e){
+      // Every backend fell over: no WebGPU, blocked CDN, old browser. Lexical for
+      // the rest of the session — it is a working mode, not an error state.
+      state.mode = "lexical";
+      bootPerf.upgradeFailed = e && e.message;
+      setStatus("lexical retrieval · dense unavailable (" + (e && e.message ? e.message : "no backend") + ")", "warn");
+      updateBootPanel();
+      throw e;
+    }
+  })();
+  return upgradePromise;
+}
+
+function scheduleUpgrade(){
+  const go = () => { ensureEmbedder().catch(() => {}); };
+  if(typeof requestIdleCallback === "function") requestIdleCallback(go, { timeout: 3000 });
+  else setTimeout(go, 1200);
+}
 
 function dismissOverlay(){
   const ov = $("#boot-overlay");
@@ -957,53 +1023,49 @@ async function boot(){
   $("#ptag").innerHTML = PROFILE.tagline;
   const fm = $("#fmail"); if(fm){ fm.href = "mailto:" + PROFILE.email; fm.textContent = PROFILE.email; }
 
-  // disable input during boot
   const qEl = $("#q"), sbEl = $("#submit-btn");
-  if(qEl){ qEl.disabled = true; qEl.placeholder = "Loading embedding model…"; }
-  if(sbEl) sbEl.disabled = true;
-
   showTab(null);
 
+  const t0 = performance.now();
   state.passages = buildPassages();
   state.bm25 = buildBM25(state.passages);
+
+  // Passage vectors ship with the page — decode, do not compute. If this throws the
+  // bundle is broken (build.sh will not ship a mismatch), and the honest answer is
+  // to run lexical for the whole session rather than to embed 180 passages on the
+  // visitor's machine to paper over it.
+  try{
+    markStart("decode");
+    state.vecs = decodeVectors(state.passages);
+    markEnd("decode");
+  } catch(e){
+    state.vecs = [];
+    console.error("precomputed vectors unusable —", e.message);
+  }
 
   // the greeting lives in the hero now — the thread opens straight on the suggestions
   renderSuggest(null);
   mountVisitorCard();
 
-  const t0 = performance.now();
-  try{
-    setBootMsg("Loading embedding model…");
-    setStatus("loading embedding model…", "warn");
-    state.embedder = await loadEmbedder(txt => { setBootMsg(txt); setStatus(txt, "warn"); });
-    setBootMsg("Building vector index…");
-    setStatus("building vector index…", "warn");
-    state.vecs = await timed("embed", batchEmbed(state.passages.map(p => p.dense)));
-    state.mode = "hybrid";
-    const ms = Math.round(performance.now()-t0);
-    bootPerf.total = ms;
-    updateBootPanel();
-    setStatus("hybrid retrieval ready · generation " + (CONFIG.generatorUrl ? "on" : "off"), "ok");
-    setStatusDetails(
-      state.backend ? state.backend.split(" · ").slice(1).join(" · ") : "",
-      state.passages.length + " passages embedded in " + ms + " ms"
-    );
-  } catch(e){
-    state.mode = "lexical";
-    bootPerf.total = Math.round(performance.now() - t0);
-    updateBootPanel();
-    setStatus("embedding model unavailable — degraded to BM25 lexical retrieval", "warn");
-  }
-
-  // re-enable input and dismiss overlay
+  // Open in lexical mode. BM25 is not a holding pattern: it has its own calibrated
+  // gate (CONFIG.lexThreshold) and answers most of the golden set on its own, so the
+  // agent is genuinely usable here, not merely visible.
+  state.mode = "lexical";
+  state.ready = true;
+  bootPerf.total = Math.round(performance.now() - t0);
   if(qEl){ qEl.disabled = false; qEl.placeholder = "Ask about his work, his stack, work authorization, what he wants next…"; }
   if(sbEl) sbEl.disabled = false;
   dismissOverlay();
-  const strip = $("#status-strip");
-  if(strip) strip.style.display = "none";
-  state.ready = true;
+  setStatus("lexical retrieval ready · generation " + (CONFIG.generatorUrl ? "on" : "off"), "ok");
+  setStatusDetails("BM25", state.passages.length + " passages · vectors decoded in " + fmtMs(bootPerf.stages.decode));
+  updateBootPanel();
   updateSessionSidebar();
   updateGenCostEst();
+
+  // Then upgrade to hybrid in the background. The model is still needed to embed the
+  // query — that is the only thing it is for now — so it loads on the first idle
+  // callback or the first question, whichever comes first, and never blocks input.
+  if(state.vecs.length) scheduleUpgrade();
 }
 
 window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, looksLikeJobDescription, bootPerf,

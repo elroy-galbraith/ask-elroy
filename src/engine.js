@@ -13,6 +13,13 @@ const CONFIG = {
   // Leave empty and the agent runs in retrieval-only mode (still fully usable).
   generatorUrl: "https://ask-elroy.elroy-galbraith.workers.dev",
   embedModel: "Xenova/all-MiniLM-L6-v2",
+  // Tier 2, not implemented. Set this to a Worker route and embedQuery() will POST
+  // the query there instead of loading a ~25 MB model into the browser at all — the
+  // passage vectors already ship precomputed, so the local model exists only to
+  // embed the one query. Whatever model that route runs, src/vectors.js must be
+  // regenerated with the same one: two embedding models do not share a vector
+  // space, and mixing them produces cosines that look plausible and rank wrongly.
+  queryEmbedUrl: "",
   topK: 5,
   scopeThreshold: 0.34,        // min dense cosine to answer at all (hybrid mode)
   lexThreshold: 0.30,          // gate for the BM25-only fallback, which separates worse
@@ -35,7 +42,6 @@ const state = {
 
 /* ---------------- text utils ---------------- */
 const STOP = new Set(("a an the and or but if is are was were be been being do does did doing have has had of in on at to for with about from by as into over under again further then once here there all any both each few more most other some such no nor not only own same so than too very can will just should now i you he she it we they me him her them my your his their our us what which who whom this that these those am tell give say please would could like want know").split(" "));
-const strip = h => String(h).replace(/<[^>]+>/g," ").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&middot;/g,"-");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function toks(s){
   return String(s).toLowerCase().replace(/[^a-z0-9+#\s]/g," ").split(/\s+/)
@@ -51,22 +57,9 @@ function stem(w){
 }
 
 /* ---------------- 1. chunk ---------------- */
-function buildPassages(){
-  const out = [];
-  BANK.forEach((e,i) => {
-    const docId = IDS[i] || ("doc"+i);
-    const parts = String(e.a).split(/<\/(?:p|li)>/i)
-      .map(s => strip(s).replace(/\s+/g," ").trim())
-      .filter(t => t.length > 30);
-    parts.forEach((t,n) => out.push({
-      pid: docId + "#" + n, docId, n, cat: e.cat,
-      title: strip(e.q), text: t,
-      dense: strip(e.q) + " — " + t,
-      lex: strip(e.q) + " " + (n === 0 ? e.k + " " : "") + t
-    }));
-  });
-  return out;
-}
+// buildPassages() and strip() live in src/chunk.js, concatenated ahead of this
+// file and shared verbatim with tools/embed.mjs, so the precomputed vectors
+// cannot drift from the runtime chunking.
 
 /* ---------------- 2. lexical index (BM25) ---------------- */
 function buildBM25(passages){
@@ -178,6 +171,38 @@ async function loadEmbedder(setStatus){
   }
   perfSink = bootPerf.stages;
   throw last || new Error("no embedding backend available");
+}
+
+/* ---------------- 3b. precomputed passage vectors ----------------
+   The corpus is identical for every visitor, so embedding it in the browser was
+   the same 15.5 s of arithmetic repeated per cold visit. src/vectors.js ships the
+   result; this decodes it with no network and no model. */
+function decodeVectors(passages){
+  if(typeof VECTORS === "undefined" || !VECTORS) throw new Error("src/vectors.js not loaded");
+  const { dim, count, scale, pids } = VECTORS;
+  if(count !== passages.length) throw new Error("vectors cover " + count + " passages, chunker produced " + passages.length);
+  // Cheap belt-and-braces against a stale bundle: build.sh already refuses to ship
+  // a mismatch, but a wrong alignment here is invisible rather than loud.
+  for(let i = 0; i < count; i++){
+    if(pids[i] !== passages[i].pid) throw new Error("passage " + i + " is " + passages[i].pid + ", vectors say " + pids[i]);
+  }
+  const bin = atob(VECTORS.data);
+  if(bin.length !== count * dim) throw new Error("payload is " + bin.length + " bytes, expected " + (count * dim));
+  const bytes = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const q = new Int8Array(bytes.buffer);
+  const out = new Array(count);
+  for(let i = 0; i < count; i++){
+    const v = new Float32Array(dim);
+    let n = 0;
+    for(let d = 0; d < dim; d++){ const x = q[i*dim + d] / scale; v[d] = x; n += x * x; }
+    // int8 rounding moves the row off the unit sphere by ~0.1%. Re-normalise so a
+    // dot product is still exactly a cosine and the 0.34 gate keeps its meaning.
+    n = Math.sqrt(n) || 1;
+    for(let d = 0; d < dim; d++) v[d] /= n;
+    out[i] = v;
+  }
+  return out;
 }
 
 async function embed(texts){

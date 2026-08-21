@@ -15,14 +15,25 @@ const p = await b.newPage();
 const errs = [];
 p.on('pageerror', e => errs.push('PAGEERROR: ' + e.message + '\n' + (e.stack || '')));
 
+const tBoot = Date.now();
 await p.goto('file://' + root + '/index.html');
-await p.waitForFunction(() => window.askElroy && window.askElroy.state.ready, null, { timeout: 180000 })
-       .catch(() => console.log('! boot did not report ready in 180s'));
+// The page must be answerable off the precomputed vectors alone — no model, no CDN.
+await p.waitForFunction(() => window.askElroy && window.askElroy.state.ready, null, { timeout: 15000 })
+       .catch(() => console.log('! boot did not report ready in 15s'));
+const bootMs = Date.now() - tBoot;
 
 const statusText = await p.textContent('#status-text');
 console.log('mode      :', statusText.slice(0, 120));
-const passages = await p.evaluate(() => window.askElroy ? window.askElroy.state.passages.length : '?');
-console.log('passages  :', passages);
+const boot = await p.evaluate(() => ({
+  passages: window.askElroy.state.passages.length,
+  vecs: window.askElroy.state.vecs.length,
+  total: Math.round(window.askElroy.bootPerf.total),
+  decode: Math.round(window.askElroy.bootPerf.stages.decode || 0)
+}));
+console.log('passages  :', boot.passages);
+console.log('cold start:', `${bootMs} ms wall-clock · ${boot.total} ms in-page · vectors decoded in ${boot.decode} ms`);
+if (boot.vecs !== boot.passages) errs.push(`VECTORS: ${boot.vecs} decoded for ${boot.passages} passages`);
+if (bootMs > 3000) errs.push(`COLD START: ${bootMs} ms to answerable — precomputed vectors should make this near-instant`);
 
 async function ask(q) {
   await p.fill('#q', q);
@@ -45,13 +56,24 @@ await p.click('#tab-advanced');
 await p.click('#advtab-eval');
 await p.click('#runeval');
 await p.waitForFunction(() => {
-  const el = document.querySelector('#ec-r1-val');
+  const el = document.querySelector('#ec-r5-val');
   return el && el.textContent !== '—';
-}, null, { timeout: 60000 });
+}, null, { timeout: 180000 });
+const r5  = await p.textContent('#ec-r5-val');
 const r1  = await p.textContent('#ec-r1-val');
 const mrr = await p.textContent('#ec-mrr-val');
 const ref = await p.textContent('#ec-ref-val');
-console.log('eval      :', `hit@K ${r1}  |  MRR ${mrr}  |  refusal ${ref}`);
+console.log('eval      :', `hit@5 ${r5}  |  hit@1 ${r1}  |  MRR ${mrr}  |  refusal ${ref}`);
+// The hit@5 card must agree with the PASS column it sits above.
+const tableAgrees = await p.evaluate(() => {
+  const rows = [...document.querySelectorAll('#eval-tbody tr')];
+  const pass = rows.filter(r => r.querySelector('.tag-ok')).length;
+  return { pass, n: rows.length, card: document.querySelector('#ec-r5-note').textContent };
+});
+console.log('card check:', `${tableAgrees.card} vs ${tableAgrees.pass} PASS rows of ${tableAgrees.n}`);
+if (!tableAgrees.card.startsWith(tableAgrees.pass + ' of ')) {
+  errs.push(`HIT@5 CARD: says "${tableAgrees.card}" but the table passes ${tableAgrees.pass} rows`);
+}
 
 // ---- Fit score panel (network stubbed; no live worker needed) ----
 await p.route('**/fit/score', route => route.fulfill({
