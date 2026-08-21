@@ -508,6 +508,7 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
           <div class="mono" style="display:grid;gap:6px;font-size:12px" id="trace-gate">
             <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">mode</span><span id="tg-mode">—</span></div>
             <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">max cosine</span><span id="tg-conf">—</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">term coverage</span><span id="tg-cov">—</span></div>
             <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">scope gate</span><span id="tg-gate">—</span></div>
             <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">decision</span><span id="tg-decision">—</span></div>
             <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">retrieve</span><span id="tg-retrieve">—</span></div>
@@ -515,7 +516,7 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
             <div style="display:flex;justify-content:space-between;border-top:1px solid var(--color-divider);padding-top:6px"><span style="color:var(--color-dim)">tokens</span><span id="tg-tokens">—</span></div>
             <div style="display:flex;justify-content:space-between"><span style="color:var(--color-dim)">cost</span><span id="tg-cost">—</span></div>
           </div>
-          <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Invalid citation indices and uncited claims are flagged in the answer itself, never hidden. Below the gate the agent refuses before the model call, so the refusal is free.</p>
+          <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Invalid citation indices and uncited claims are flagged in the answer itself, never hidden. Below the gate the agent refuses before the model call, so the refusal is free. The gate reads both signals and needs only one of them: a question can be phrased in words the corpus never uses, or use its exact words in a way the embedding does not recognise, and either route in.</p>
         </div>
         <div class="blueprint" style="padding:16px" id="sidebar-boot">
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
@@ -561,12 +562,18 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
       </div>
 
       <!-- stat cards -->
-      <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;margin-bottom:30px" id="eval-cards">
+      <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px;margin-bottom:30px" id="eval-cards">
         <div class="blueprint" style="padding:14px 16px">
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
           <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)" id="ec-r5-label">Retrieval hit@5</div>
           <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px" id="ec-r5-val">—</div>
           <div style="font-size:11.5px;color:var(--color-dim)" id="ec-r5-note">not run yet</div>
+        </div>
+        <div class="blueprint" style="padding:14px 16px">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-dim)">Paraphrase hit@5</div>
+          <div class="mono" style="font-size:32px;line-height:1.15;margin-top:5px" id="ec-para-val">—</div>
+          <div style="font-size:11.5px;color:var(--color-dim)" id="ec-para-note">held-out phrasings</div>
         </div>
         <div class="blueprint" style="padding:14px 16px">
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
@@ -622,12 +629,13 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
         <div class="blueprint" style="padding:16px;position:sticky;top:24px">
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
           <div class="section-label" style="margin-bottom:6px">Scope-gate sweep</div>
-          <p style="margin:0 0 12px;font-size:11.5px;line-height:1.5;color:var(--color-dim)">What each setting costs you: in-scope questions answered against out-of-scope probes refused. The joint optimum is marked.</p>
+          <p style="margin:0 0 12px;font-size:11.5px;line-height:1.5;color:var(--color-dim)">What each setting costs you: in-scope questions answered against out-of-scope probes refused. The swept axis is the dense arm; the lexical arm stays where the live gate has it. The joint optimum is marked.</p>
           <table class="table" style="font-size:12px" id="sweep-table">
-            <thead><tr><th style="width:52px">gate</th><th>answered</th><th>refused</th><th style="width:44px">joint</th></tr></thead>
+            <thead><tr><th style="width:52px">cosine</th><th>answered</th><th>refused</th><th style="width:44px">joint</th></tr></thead>
             <tbody id="sweep-tbody"><tr><td colspan="4" style="color:var(--color-dim)">not run yet</td></tr></tbody>
           </table>
-          <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Two gates exist in the real build: <span class="mono">scopeThreshold</span> for hybrid, <span class="mono">lexThreshold</span> for the BM25-only fallback.</p>
+          <p id="sweep-note" style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">not run yet</p>
+          <p style="margin:8px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Three constants in the real build: <span class="mono">scopeThreshold</span> and <span class="mono">covThreshold</span> are the two arms in hybrid mode, <span class="mono">lexThreshold</span> is the single arm the BM25-only fallback runs on.</p>
         </div>
       </div>
     </div>
