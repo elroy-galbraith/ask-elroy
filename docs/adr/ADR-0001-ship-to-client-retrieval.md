@@ -104,23 +104,112 @@ anisotropic — real cosines cluster far higher and closer together than the sim
 which compresses exactly the gaps that matter. It read as "int8 is unlikely to be the thing
 that breaks Hit@5"; the measurement above is what settles it.
 
-### What the measurement did surface
+### What the measurement did surface: the golden set is not a neutral referee
 
-On the current golden set, hybrid retrieval is **worse** than BM25 alone:
+On the golden set, hybrid retrieval looks **worse** than BM25 alone:
 
-| | Hit@1 | Hit@5 | MRR |
+| golden set (66) | Hit@1 | Hit@5 | MRR |
 |---|---|---|---|
 | lexical (BM25 only) | 52 / 66 = 79% | 64 / 66 = 97% | 0.865 |
 | hybrid (RRF fusion) | 39 / 66 = 59% | 59 / 66 = 89% | 0.719 |
 
-This predates this change — `main` reproduces it — and it is out of scope here, so nothing
-in this ADR acts on it. But it inverts the story Tier 1 tells. The background upgrade to
-hybrid is currently a downgrade in retrieval quality, and "an immediate BM25 answer beats a
-15-second wait for a dense one" is understating it: on this corpus the BM25 answer is also
-the better one. The corpus is 40 hand-written Q&A entries whose canonical question is in the
-passage text, which is close to the best case for lexical matching and gives the dense half
-little to add. Worth its own ADR: retune the fusion, weight BM25 above dense, or drop the
-dense half entirely and delete the model load with it.
+Read at face value that says to delete the dense half and the 25 MB model with it. **It is a
+measurement artifact, and acting on it would have been a mistake.**
+
+The golden set was written alongside the corpus by the same author. Measuring how much of a
+query literally reappears in the passage it expects — content words, stopwords dropped:
+
+| | mean overlap | zero-overlap queries | fully-contained queries |
+|---|---|---|---|
+| golden set (66) | **0.50** | 7 | 11 |
+| held-out set (38) | **0.28** | 13 | 0 |
+
+Half of the average golden query is already sitting in its own answer, and 11 of them are
+contained outright. That is BM25's best case by construction. The suite grades the retriever
+on the phrasings the author happened to anticipate, which is the one distribution where
+lexical matching cannot lose.
+
+So: a held-out set, one query per doc, written from each doc's *intent* rather than its text,
+in the register a recruiter actually types (appendix below). Same page, same backend:
+
+| held-out set (38) | Hit@1 | Hit@5 | MRR |
+|---|---|---|---|
+| lexical (BM25 only) | 21 / 38 = 55% | 32 / 38 = 84% | 0.658 |
+| hybrid (RRF fusion) | **26 / 38 = 68%** | **34 / 38 = 89%** | **0.77** |
+
+The ordering reverses. Dense wins 10 queries to lexical's 5, and rescues three that BM25
+misses entirely — *"give me the two minute version of who this guy is"* (intro), *"how does
+he pull structured fields out of paperwork"* (extraction-pipeline), *"what stops an automated
+decision from going badly wrong"* (risk-guardrails). Vocabulary the corpus never uses for
+concepts the corpus covers. That is the entire job of the dense half, and the golden set
+could not see it.
+
+**Decision: the dense half stays.** Tier 2 (`CONFIG.queryEmbedUrl`) is now the interesting
+lever rather than deletion — if dense earns its keep but the model exists solely to embed one
+short query string, that string can be embedded server-side and the 25 MB download deleted
+without giving up the retrieval quality.
+
+Two caveats on the held-out set, both pointing the same way: the queries were written by the
+author of this ADR, who knows the corpus exists even when writing from intent rather than
+text; and 2 of the 38 turned out to duplicate existing golden rows. Excluding those two the
+split is 30/36 lexical against 32/36 hybrid — unchanged conclusion. Neither is a substitute
+for logged queries from real visitors, which is the measurement that would settle it.
+
+**The gate, which is the worse finding.** At `CONFIG.scopeThreshold` 0.34, hybrid refuses
+**10 of the 38** held-out queries outright — legitimate, in-corpus questions, turned away
+before any model call because the confidence gate was tuned against the same vocabulary-rich
+golden set. Lexical at 0.30 refuses 7 of 38. A visitor asking *"what stops an automated
+decision from going badly wrong"* has that answer in the corpus and does not get it. That is
+a bigger visitor-facing defect than any ranking delta in this document, and it gets its own
+ADR.
+
+#### Appendix: the held-out set
+
+Query → expected doc. Recorded here so the numbers above are auditable; it should become a
+committed suite alongside `GOLDEN` and `OOS`.
+
+| query | expects |
+|---|---|
+| give me the two minute version of who this guy is | `intro` |
+| why hire him instead of the other hundred applicants | `differentiator` |
+| what sort of position is he chasing | `role-wanted` |
+| what does he grill employers about before joining | `filter-question` |
+| what is on his plate day to day right now | `yoii-current` |
+| walk me through the credit approval engine | `odin` |
+| how did he prove the lending decisions were sound | `odin-eval` |
+| has he ever written up something that did not work | `negative-results` |
+| tell me about the helpdesk bot | `support-agent` |
+| how would he benchmark a dialogue system | `conv-eval` |
+| how does he pull structured fields out of paperwork | `extraction-pipeline` |
+| has he caught defects other engineers missed | `silent-bugs` |
+| did he do anything before machine learning | `economist` |
+| walk me through his job history | `career-timeline` |
+| how big were the teams he sat in | `team-scale` |
+| does he want to lead people or stay hands on | `ic-vs-manager` |
+| how does he pick what to build next | `how-decide` |
+| what stops an automated decision from going badly wrong | `risk-guardrails` |
+| can he explain technical work to executives | `communication` |
+| where does he struggle | `weaknesses` |
+| does he write papers | `publications` |
+| what is his newest research about | `streaming-rag` |
+| does he sit on any committees | `jaia` |
+| where can i see code he has written | `open-source` |
+| which tools and frameworks does he use | `stack` |
+| does he understand banking | `finance-domain` |
+| which university did he attend | `education` |
+| does he speak japanese † | `languages` |
+| has he actually run models in front of real users | `production-llm` |
+| which city is he in and would he move | `location` |
+| does he need sponsorship to work here | `visa` |
+| what compensation is he expecting | `salary` |
+| what is pushing him to leave his current job | `why-move` |
+| what are his long term ambitions | `five-years` |
+| would he fit at a big corporate or a startup | `company-fit` |
+| how quickly could he join | `start-date` |
+| what is his email address | `contact` |
+| am i talking to a bot † | `is-this-ai` |
+
+† duplicates an existing `GOLDEN` row; excluded in the 30/36 vs 32/36 check above.
 
 ## The failure mode this design is built around
 
@@ -156,7 +245,10 @@ should already have refused to ship the mismatch.
   before, and only when it upgrades to hybrid.
 - The first question a visitor asks is likely answered in lexical mode. That is the
   trade: an immediate BM25 answer beats a 15-second wait for a dense one. Both modes have
-  their own calibrated gate, so neither answers what it should refuse.
+  their own calibrated gate, so neither answers what it should refuse — but see the held-out
+  measurement above: both gates are calibrated against a vocabulary-rich suite and both
+  refuse in-scope questions they should answer, lexical 7 of 38 and hybrid 10 of 38. The
+  first-question trade is real; the gate that fronts it needs retuning.
 - If every embedding backend fails — no WebGPU, blocked CDN, old browser — the page stays
   in lexical mode for the session and keeps working. That path is now the default state
   rather than an error state, which makes it much harder to break unnoticed.
