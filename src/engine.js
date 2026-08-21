@@ -116,21 +116,67 @@ const BACKENDS = [
 function withTimeout(p, ms, what){
   return Promise.race([p, new Promise((_,rej) => setTimeout(() => rej(new Error(what+" timed out")), ms))]);
 }
+
+/* ---- boot instrumentation ----
+   Four stages dominate cold start and they fail for different reasons, so they
+   are timed apart rather than as one number: fetching the library off the CDN,
+   fetching and compiling the ONNX weights, the first (uncached) forward pass,
+   and the passage embed loop. performance.mark/measure so the numbers also show
+   up in a browser profile next to everything else, not only in our own panel. */
+const bootPerf = {
+  stages: {},        // name -> ms, successful attempt only
+  attempts: [],      // every backend tried, including the ones that failed
+  backend: null,
+  total: 0
+};
+function markStart(name){
+  try { performance.mark("ask-elroy:" + name + ":start"); } catch(e){}
+}
+// timed() writes into perfSink. During a backend attempt that is a scratch
+// object, promoted into bootPerf.stages only if the attempt succeeds — otherwise
+// a blocked CDN would leave its fetch time on the panel looking like a success.
+let perfSink = bootPerf.stages;
+function markEnd(name){
+  try {
+    performance.mark("ask-elroy:" + name + ":end");
+    const m = performance.measure("ask-elroy:" + name, "ask-elroy:" + name + ":start", "ask-elroy:" + name + ":end");
+    const ms = m && typeof m.duration === "number" ? m.duration
+             : performance.getEntriesByName("ask-elroy:" + name, "measure").pop().duration;
+    perfSink[name] = ms;
+    return ms;
+  } catch(e){ return 0; }
+}
+async function timed(name, promise){
+  markStart(name);
+  try { return await promise; } finally { markEnd(name); }
+}
 // Try fastest backend first and walk down. Every step is a real failure mode
 // (no WebGPU, blocked CDN, old browser) rather than a hypothetical one.
 async function loadEmbedder(setStatus){
   let last;
   for(const b of BACKENDS){
+    const t0 = performance.now();
+    const attempt = {};
+    perfSink = attempt;
     try{
       setStatus("loading embedding model — " + b.label + "…", "warn");
-      const mod = await withTimeout(import(b.url), 30000, "CDN fetch");
+      const mod = await timed("cdn", withTimeout(import(b.url), 30000, "CDN fetch"));
       if(mod.env) mod.env.allowLocalModels = false;
-      const pipe = await withTimeout(mod.pipeline("feature-extraction", CONFIG.embedModel, b.opts), 90000, "model load");
-      await withTimeout(pipe(["warm up"], { pooling:"mean", normalize:true }), 30000, "warm-up");
+      const pipe = await timed("model", withTimeout(mod.pipeline("feature-extraction", CONFIG.embedModel, b.opts), 90000, "model load"));
+      await timed("warmup", withTimeout(pipe(["warm up"], { pooling:"mean", normalize:true }), 30000, "warm-up"));
       state.backend = b.label;
+      bootPerf.backend = b.label;
+      Object.assign(bootPerf.stages, attempt);
+      perfSink = bootPerf.stages;
+      bootPerf.attempts.push({ label: b.label, ok: true, ms: performance.now() - t0, stages: attempt });
       return pipe;
-    } catch(e){ last = e; }
+    } catch(e){
+      last = e;
+      perfSink = bootPerf.stages;
+      bootPerf.attempts.push({ label: b.label, ok: false, ms: performance.now() - t0, err: e && e.message, stages: attempt });
+    }
   }
+  perfSink = bootPerf.stages;
   throw last || new Error("no embedding backend available");
 }
 

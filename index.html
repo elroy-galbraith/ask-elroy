@@ -517,6 +517,14 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
           </div>
           <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Invalid citation indices and uncited claims are flagged in the answer itself, never hidden. Below the gate the agent refuses before the model call, so the refusal is free.</p>
         </div>
+        <div class="blueprint" style="padding:16px" id="sidebar-boot">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div class="section-label" style="margin-bottom:11px">Cold start</div>
+          <div class="mono" style="display:grid;gap:6px;font-size:12px" id="boot-timing">
+            <!-- filled by JS -->
+          </div>
+          <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Measured in this tab with <span class="mono">performance.measure()</span>, so the same marks show up in a browser profile. Four stages, because they fail for four different reasons.</p>
+        </div>
         <div class="blueprint" style="padding:16px" id="sidebar-session">
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
           <div class="section-label" style="margin-bottom:11px">Session</div>
@@ -1294,21 +1302,67 @@ const BACKENDS = [
 function withTimeout(p, ms, what){
   return Promise.race([p, new Promise((_,rej) => setTimeout(() => rej(new Error(what+" timed out")), ms))]);
 }
+
+/* ---- boot instrumentation ----
+   Four stages dominate cold start and they fail for different reasons, so they
+   are timed apart rather than as one number: fetching the library off the CDN,
+   fetching and compiling the ONNX weights, the first (uncached) forward pass,
+   and the passage embed loop. performance.mark/measure so the numbers also show
+   up in a browser profile next to everything else, not only in our own panel. */
+const bootPerf = {
+  stages: {},        // name -> ms, successful attempt only
+  attempts: [],      // every backend tried, including the ones that failed
+  backend: null,
+  total: 0
+};
+function markStart(name){
+  try { performance.mark("ask-elroy:" + name + ":start"); } catch(e){}
+}
+// timed() writes into perfSink. During a backend attempt that is a scratch
+// object, promoted into bootPerf.stages only if the attempt succeeds — otherwise
+// a blocked CDN would leave its fetch time on the panel looking like a success.
+let perfSink = bootPerf.stages;
+function markEnd(name){
+  try {
+    performance.mark("ask-elroy:" + name + ":end");
+    const m = performance.measure("ask-elroy:" + name, "ask-elroy:" + name + ":start", "ask-elroy:" + name + ":end");
+    const ms = m && typeof m.duration === "number" ? m.duration
+             : performance.getEntriesByName("ask-elroy:" + name, "measure").pop().duration;
+    perfSink[name] = ms;
+    return ms;
+  } catch(e){ return 0; }
+}
+async function timed(name, promise){
+  markStart(name);
+  try { return await promise; } finally { markEnd(name); }
+}
 // Try fastest backend first and walk down. Every step is a real failure mode
 // (no WebGPU, blocked CDN, old browser) rather than a hypothetical one.
 async function loadEmbedder(setStatus){
   let last;
   for(const b of BACKENDS){
+    const t0 = performance.now();
+    const attempt = {};
+    perfSink = attempt;
     try{
       setStatus("loading embedding model — " + b.label + "…", "warn");
-      const mod = await withTimeout(import(b.url), 30000, "CDN fetch");
+      const mod = await timed("cdn", withTimeout(import(b.url), 30000, "CDN fetch"));
       if(mod.env) mod.env.allowLocalModels = false;
-      const pipe = await withTimeout(mod.pipeline("feature-extraction", CONFIG.embedModel, b.opts), 90000, "model load");
-      await withTimeout(pipe(["warm up"], { pooling:"mean", normalize:true }), 30000, "warm-up");
+      const pipe = await timed("model", withTimeout(mod.pipeline("feature-extraction", CONFIG.embedModel, b.opts), 90000, "model load"));
+      await timed("warmup", withTimeout(pipe(["warm up"], { pooling:"mean", normalize:true }), 30000, "warm-up"));
       state.backend = b.label;
+      bootPerf.backend = b.label;
+      Object.assign(bootPerf.stages, attempt);
+      perfSink = bootPerf.stages;
+      bootPerf.attempts.push({ label: b.label, ok: true, ms: performance.now() - t0, stages: attempt });
       return pipe;
-    } catch(e){ last = e; }
+    } catch(e){
+      last = e;
+      perfSink = bootPerf.stages;
+      bootPerf.attempts.push({ label: b.label, ok: false, ms: performance.now() - t0, err: e && e.message, stages: attempt });
+    }
   }
+  perfSink = bootPerf.stages;
   throw last || new Error("no embedding backend available");
 }
 
@@ -1648,6 +1702,39 @@ function updateTracePanel(trace){
     : (trace.answered ? "n/a" : "n/a");
   $("#tg-tokens").textContent = trace.usage ? trace.usage.input_tokens + " in / " + trace.usage.output_tokens + " out" : "—";
   $("#tg-cost").textContent = trace.usage ? "$" + cost.toFixed(5) : "$0.00000";
+}
+
+/* ---- boot timing panel ----
+   The cold-start budget, split by stage. These are the numbers the
+   ship-to-client work is judged against, so they are on the page rather than
+   in a console log — same rule as the eval suite. */
+function fmtMs(ms){
+  if(ms === null || ms === undefined) return "—";
+  return ms >= 1000 ? (ms/1000).toFixed(2) + " s" : Math.round(ms) + " ms";
+}
+function updateBootPanel(){
+  const el = $("#boot-timing");
+  if(!el) return;
+  const st = bootPerf.stages;
+  const rows = [
+    ["CDN import()",  st.cdn,     "transformers.js off jsdelivr"],
+    ["model load",    st.model,   "ONNX weights fetch + compile"],
+    ["warm-up",       st.warmup,  "first forward pass"],
+    ["passage embed", st.embed,   state.passages.length + " passages"]
+  ];
+  const failed = bootPerf.attempts.filter(a => !a.ok);
+  el.innerHTML = rows.map(([k,v,note]) => `
+    <div style="display:flex;justify-content:space-between;gap:10px">
+      <span style="color:var(--color-dim)" title="${esc(note)}">${esc(k)}</span>
+      <span>${fmtMs(v)}</span>
+    </div>`).join("") + `
+    <div style="display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--color-divider);padding-top:6px">
+      <span style="color:var(--color-dim)">total to ready</span><span>${fmtMs(bootPerf.total || null)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;gap:10px">
+      <span style="color:var(--color-dim)">backend</span><span style="text-align:right">${esc(bootPerf.backend || state.mode)}</span>
+    </div>` +
+    (failed.length ? `<div style="font-size:11px;color:var(--color-warn);text-wrap:pretty">${failed.length} backend${failed.length>1?"s":""} failed first: ${failed.map(a => esc(a.label.split(" \u00b7 ").slice(1).join(" \u00b7 ")) + " (" + fmtMs(a.ms) + ")").join(", ")}</div>` : "");
 }
 
 /* ---- chat messages ---- */
@@ -2460,16 +2547,18 @@ async function boot(){
   renderSuggest(null);
   mountVisitorCard();
 
+  const t0 = performance.now();
   try{
     setBootMsg("Loading embedding model…");
     setStatus("loading embedding model…", "warn");
-    const t0 = performance.now();
     state.embedder = await loadEmbedder(txt => { setBootMsg(txt); setStatus(txt, "warn"); });
     setBootMsg("Building vector index…");
     setStatus("building vector index…", "warn");
-    state.vecs = await batchEmbed(state.passages.map(p => p.dense));
+    state.vecs = await timed("embed", batchEmbed(state.passages.map(p => p.dense)));
     state.mode = "hybrid";
     const ms = Math.round(performance.now()-t0);
+    bootPerf.total = ms;
+    updateBootPanel();
     setStatus("hybrid retrieval ready · generation " + (CONFIG.generatorUrl ? "on" : "off"), "ok");
     setStatusDetails(
       state.backend ? state.backend.split(" · ").slice(1).join(" · ") : "",
@@ -2477,6 +2566,8 @@ async function boot(){
     );
   } catch(e){
     state.mode = "lexical";
+    bootPerf.total = Math.round(performance.now() - t0);
+    updateBootPanel();
     setStatus("embedding model unavailable — degraded to BM25 lexical retrieval", "warn");
   }
 
@@ -2491,7 +2582,7 @@ async function boot(){
   updateGenCostEst();
 }
 
-window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, looksLikeJobDescription,
+window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, looksLikeJobDescription, bootPerf,
   get busy(){ return busy; } };
 boot();
 </script>
