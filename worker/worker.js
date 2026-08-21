@@ -108,6 +108,21 @@ export function reconcile(rubric, skeptic, advocate, cfg = FIT_TIERS) {
   return { overall, tier, criteria };
 }
 
+// normalizeScores([]) is what a refused or unparseable scorer call collapses to
+// (the id map ends up empty), and reconcile() cannot tell that apart from a
+// scorer that genuinely scored every criterion 0 — it fills each miss with
+// clampScore(undefined) = 0 and an empty note, producing a fully-formed panel
+// that looks like a harsh-but-real assessment. Check coverage before reconcile
+// runs so a missing scorer arm fails loudly (502, degrades to narrative-only)
+// instead of silently faking a skeptic or advocate opinion.
+export function assertFullCoverage(rubric, scored, label) {
+  const ids = new Set((scored || []).map(s => String(s.id)));
+  const missing = (rubric || []).filter(c => !ids.has(String(c.id)));
+  if (missing.length) {
+    throw new Error(`${label} scorer missing ${missing.length}/${rubric.length} criteria (ids: ${missing.map(c => c.id).join(',')})`);
+  }
+}
+
 const cors = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET, POST, OPTIONS",
@@ -435,7 +450,12 @@ async function handleScore(request, env, ctx) {
       callJSON(env, model, SYSTEM_SCORE_ADVOCATE, scoreUser)
     ]);
 
-    panel = reconcile(rubric, normalizeScores(skepRes.json), normalizeScores(advRes.json));
+    const skepticScores = normalizeScores(skepRes.json);
+    const advocateScores = normalizeScores(advRes.json);
+    assertFullCoverage(rubric, skepticScores, "skeptic");
+    assertFullCoverage(rubric, advocateScores, "advocate");
+
+    panel = reconcile(rubric, skepticScores, advocateScores);
   } catch (e) {
     return json({ error: "scoring failed", detail: String(e).slice(0, 200) }, 502);
   }
