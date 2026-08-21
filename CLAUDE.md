@@ -45,7 +45,7 @@ The app is a single `index.html` assembled from eight source files by `build.sh`
 |---|---|
 | `src/head.html` | Markup, CSS, "How this works" prose |
 | `src/corpus.js` | `PROFILE`, `CATS`, `BANK` — the only facts the agent can state |
-| `src/eval.js` | `IDS`, `GOLDEN`, `OOS` — retrieval regression and refusal suites |
+| `src/eval.js` | `IDS`, `GOLDEN`, `PARAPHRASE`, `OOS` — retrieval regression, held-out phrasings, refusal suite |
 | `src/chunk.js` | `strip()`, `buildPassages()` — **shared verbatim with `tools/embed.mjs`** |
 | `src/vectors.js` | Generated. int8 passage vectors + corpus SHA-256 + `pid` list |
 | `src/engine.js` | `CONFIG`, BM25, vector decode, embedding-model cascade, hybrid retrieval, generation proxy call, groundedness check |
@@ -62,7 +62,7 @@ The app is a single `index.html` assembled from eight source files by `build.sh`
 
 **Pipeline per question:**
 1. BM25 score + (in hybrid mode) dense cosine → RRF fusion → top-K passages.
-2. Scope gate: refuse below `CONFIG.scopeThreshold` (hybrid) or `CONFIG.lexThreshold` (BM25-only), before any model call.
+2. Scope gate: answer if `cosine >= CONFIG.scopeThreshold` **or** `coverage >= CONFIG.covThreshold` (hybrid), or `coverage >= CONFIG.lexThreshold` (BM25-only) — before any model call. Two signals, either one suffices; see ADR-0002.
 3. `POST { question, passages }` to the Cloudflare Worker, which calls Anthropic and streams SSE back.
 4. Groundedness check: flag the answer if citations are missing or out of range.
 
@@ -97,13 +97,31 @@ When adding an entry:
 1. Add the entry to `BANK` in `src/corpus.js`.
 2. Add its stable doc ID to `IDS` in `src/eval.js` at the same index position.
 3. Add a `GOLDEN` row so the new answer is covered by the retrieval suite.
+   Also add a `PARAPHRASE` row — the same doc asked in words the passage does not use.
+   `GOLDEN` alone is vocabulary-biased toward BM25 and will flatter the retriever.
 4. Run `./build.sh` — it regenerates `src/vectors.js` (needs huggingface.co) and refuses to
    build if the vectors and the corpus disagree. Commit `src/vectors.js` with the change.
 5. Open the Evaluation tab to verify.
 
 ## Tuning the scope gate
 
-The Evaluation tab sweeps the gate thresholds and shows the precision/recall trade-off. Adjust `CONFIG.scopeThreshold` (hybrid) and `CONFIG.lexThreshold` (BM25-only) in `src/engine.js`, rebuild, and re-run the Evaluation tab. The `GOLDEN` set covers in-scope retrieval; `OOS` covers refusals.
+The gate reads **two** signals and needs either one: max dense cosine
+(`CONFIG.scopeThreshold`, 0.40) or BM25 term coverage (`CONFIG.covThreshold`, 0.48). In
+BM25-only boot mode there is no dense arm and `CONFIG.lexThreshold` (0.44) carries it alone.
+`passesGate()` in `src/engine.js` is the only definition; `retrieve()` returns `inScope` so
+no call site re-implements it. Rationale and measurements: ADR-0002.
+
+The Evaluation tab sweeps the dense arm with the lexical arm held where the live gate has
+it, and reports what a cosine-only gate would answer at the same refusal rate.
+
+Tune against **all three** suites. `GOLDEN` (66) and `PARAPHRASE` (36) are both in-scope and
+must both be answered; `OOS` (39) must be refused. Tuning on `GOLDEN` alone is what produced
+a gate that refused golden queries whose every content word was in the passage.
+
+`OOS` deliberately contains eight `not in corpus` queries — "what is his managers name at
+yoii" scores cosine 0.77 — that **no** gate can catch, because both signals measure topical
+similarity and neither measures answerability. They are expected to reach the model, which
+refuses them for lack of supporting passages. Do not tune trying to catch them.
 
 ## In-browser debugging
 
