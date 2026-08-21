@@ -201,6 +201,20 @@ a:`<p>Two honest ones.</p>
 <p><b>Japanese.</b> I am conversational, at JLPT N4. I work effectively in Japanese technical environments with English support, but I would not claim business-level fluency.</p>
 <p>A third, more of a tendency: whenever I am close to the work I end up wanting a say in how the whole thing is designed. In the right seat that is an asset. In a narrowly scoped component role it would be friction, and I would rather say so up front.</p>`},
 
+{cat:"How I work", q:"How would you manage your weaknesses in a role?", k:"weakness manage improve mitigate handle address compensate development growth plan hire risk mitigation self aware coping",
+a:`<p>Structurally, rather than by promising to become a different person.</p>
+<p><b>Long-horizon maintenance.</b> I do not try to fix this with willpower. I ask who owns production long-term in week one, so a mismatch is either avoided or known before anyone signs. Where a handover does exist, I try to make it cheap: the decision memo, the reproduction command and the blueprint get written while the work happens, not assembled afterwards.</p>
+<p><b>Japanese.</b> I state the level plainly &mdash; JLPT N4, conversational &mdash; and work in environments with English support. If a role genuinely needs business-level Japanese, it is not my seat, and I would rather say that than discover it in month three.</p>
+<p><b>Wanting a say in the design.</b> I raise the scope question before an offer, not after. In a seat with architectural ownership this is an asset; in a narrowly scoped component role it is friction. Naming it early is the mitigation.</p>
+<p>The pattern in all three: I would rather surface a fit problem in week one than manage it quietly for a year.</p>`},
+
+{cat:"How I work", q:"What are your soft skills?", k:"soft skills interpersonal communication collaboration teamwork mentoring leadership people culture attitude working with others emotional",
+a:`<p>Three I can point at evidence for, rather than assert.</p>
+<p><b>Writing for people who are not me.</b> Five decision memos on the support-agent programme alone, each stating the decision, the evidence, the cost and what the result does <i>not</i> establish. Two rules I hold to: the uncomfortable number goes in the summary rather than the appendix, and a result inside the noise gets labelled as noise in the headline. Five years writing for policy audiences before I wrote for engineers is where that came from.</p>
+<p><b>Mentoring.</b> I have mentored engineers and set standards as a team lead, and the remit I was elected to at the Jamaica AI Association is explicitly the research agenda and the interns who execute it. That is the growing-people half of leadership, which I want, as distinct from the management ladder, which I do not.</p>
+<p><b>Saying the inconvenient thing early.</b> I publish negative results, I report what the instrument gives even when it contradicts the system I built and wanted to ship, and I ask employers the ownership question before they ask me anything hard. It is the same habit in three settings.</p>
+<p>What I would not claim: I am not the person who smooths a room. I am direct, and in the wrong culture that reads as blunt.</p>`},
+
 /* ---------------- RESEARCH & SERVICE ---------------- */
 
 {cat:"Research & service", q:"Do you publish or share your work?", k:"publish publication paper research arxiv writing blog conference share community papers published authored preprint journal citations h index scholar record thesis dissertation",
@@ -316,6 +330,12 @@ a:`<p>Owning the technical direction of how AI gets built somewhere — designin
 {cat:"Fit & logistics", q:"What kind of company suits you?", k:"company culture environment startup enterprise team fit prefer type organisation size",
 a:`<p>Somewhere R&amp;D is real rather than a small research veneer on a delivery business, and where my seat sits on the build-and-research side rather than being deployed as billable delivery headcount.</p>
 <p>Beyond that I am flexible on size. I have worked in Japanese startups where I owned everything, and I would work happily in a large organisation's research group. The structural question matters more than the logo: is there a team downstream that takes production ownership, and is there room to publish?</p>`},
+
+{cat:"Fit & logistics", q:"Would you be better suited to a small, medium or large company?", k:"small large medium company size startup scaleup enterprise corporate firm headcount big small team suited better fit",
+a:`<p>Size is the wrong axis, and I would rather answer the right one &mdash; but here is the honest version of both.</p>
+<p>I have done small: Japanese startups where I owned everything end to end. I would work happily inside a large organisation's research group. What decides it is not headcount but two structural things: is there a team downstream that takes production ownership, and is there room to publish.</p>
+<p>Which means the risk runs in a specific direction. A small firm is where I am most likely to become the permanent maintainer of everything I build, because there is nobody downstream &mdash; and that is my stated dealbreaker, not a preference. A large firm fails differently: research that is a veneer on a delivery business, or a seat that turns out to be billable delivery headcount.</p>
+<p>So: any size where the handover exists and the research is real. No size where it does not.</p>`},
 
 {cat:"Fit & logistics", q:"When could you start?", k:"start date availability notice period available when begin timeline join",
 a:`<p>Timing depends on notice and, for a role outside Japan, on the visa route — which is worth mapping early rather than at offer stage.</p>
