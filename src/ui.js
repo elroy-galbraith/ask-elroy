@@ -658,10 +658,11 @@ async function runEval(){
     const r = await retrieve(q, k);
     const docs = []; r.hits.forEach(h => { if(!docs.includes(h.p.docId)) docs.push(h.p.docId); });
     const rank = docs.indexOf(want);
+    const pass = rank > -1 && rank < k;      // the table's PASS rule — hit@k
     confIn.push([r.conf, rank === 0]);
     if(rank === 0) r1++;
-    if(rank > -1) { r5++; mrr += 1/(rank+1); }
-    evalRows.push({q, want, got: docs[0]||"—", rank, rr: rank > -1 ? 1/(rank+1) : 0, pass: rank > -1 && rank < k});
+    if(pass) { r5++; mrr += 1/(rank+1); }
+    evalRows.push({q, want, got: docs[0]||"—", rank, rr: rank > -1 ? 1/(rank+1) : 0, pass});
   }
   const n = GOLDEN.length;
 
@@ -699,8 +700,13 @@ async function runEval(){
   </tr>`).join("");
 
   // update stat cards
+  // Two distinct metrics, two distinct cards. hit@5 is the suite's own pass rule
+  // (expected doc anywhere in top-K); hit@1 is the stricter rank-1 count. Reporting
+  // r1 on a card labelled hit@5 understated the system by the whole rank-2..5 tail.
+  $("#ec-r5-val").textContent = n ? Math.round(r5/n*100) + "%" : "—";
+  $("#ec-r5-note").textContent = n ? r5 + " of " + n + " golden queries in top-" + k : "not run yet";
   $("#ec-r1-val").textContent = n ? Math.round(r1/n*100) + "%" : "—";
-  $("#ec-r1-note").textContent = n ? r1 + " of " + n + " golden queries" : "not run yet";
+  $("#ec-r1-note").textContent = n ? r1 + " of " + n + " golden queries at rank 1" : "not run yet";
   $("#ec-mrr-val").textContent = n ? (mrr/n).toFixed(2) : "—";
   $("#ec-ref-val").textContent = OOS.length ? Math.round(refused/OOS.length*100) + "%" : "—";
   $("#ec-ref-note").textContent = OOS.length ? refused + " of " + OOS.length + " probes refused" : "out-of-scope probes";
