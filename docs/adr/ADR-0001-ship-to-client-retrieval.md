@@ -49,16 +49,39 @@ int8 rounding moves a row about 0.1% off the unit sphere, and a dot product has 
 exactly a cosine or the 0.34 scope gate quietly stops meaning what it was tuned to mean.
 
 At 180 passages x 384 dims: 69,120 bytes raw, 92,160 base64. float32 would be 276,480 raw
-and 368,640 base64 — the fallback if int8 costs measurable retrieval quality.
+and 368,640 base64 — the fallback if int8 cost measurable retrieval quality. It does not;
+see below.
 
 ### Does int8 cost retrieval quality?
 
-This has to be answered by re-running the golden set against the real vectors — the fp32
-numbers (Hit@1 60%, Hit@5 96%, MRR 0.741) do not survive a change of quantisation, and if
-Hit@5 lands below 94% the answer is float32 and a 276 KB payload.
+**Measured. No.** Same 66-query golden set, same browser, same backend
+(`transformers.js 2 · WASM · quantized`, the third rung of the cascade — headless Chromium
+has no WebGPU), `main` vs this branch, deterministic across repeated runs:
 
-Pending that, a simulation bounds the perturbation. Passage vectors are quantised; the
-query is not. Over 400 trials in R^384:
+| | `main` — embedded in-browser | this branch — int8, precomputed | Δ |
+|---|---|---|---|
+| Hit@1 | 39 / 66 = 59.1% | 39 / 66 = 59.1% | 0 |
+| Hit@5 | 59 / 66 = 89.4% | 59 / 66 = 89.4% | 0 |
+| MRR | 0.724 | 0.719 | −0.005 |
+| Refusal | 10 / 11 | 10 / 11 | 0 |
+
+Not one query changed its verdict. MRR moves by one rank-swap deep in a top-5 list. The
+float32 fallback is not needed and the 276 KB payload is not paid.
+
+Measured directly rather than inferred: re-embedding all 180 passages in the page and
+comparing each to its shipped row gives mean cosine **0.988**, min 0.978, and **0 rows out
+of 180** where some other shipped vector is a closer match than the row's own — so the
+positional alignment the whole design worries about is intact, and the residual is the
+quantisation, which the table above prices at zero.
+
+**The 94% stop condition was written against a stale number.** `Hit@1 60%, Hit@5 96%,
+MRR 0.741` in the earlier ADR is `30/50, 48/50` — a 50-query golden set. The set is 66
+queries now. The 16 added rows are harder, and `main` scores 89.4% on them *today*, before
+this change touches anything. 89.4% is therefore the fp32 baseline, not a regression, and
+the like-for-like comparison is the table above.
+
+Left standing for the record, the simulation that bounded this while the measurement was
+blocked. Passage vectors are quantised; the query is not. Over 400 trials in R^384:
 
 | | |
 |---|---|
@@ -76,10 +99,28 @@ cheap when it happens:
   near-misses at 0.28–0.48, the rest in a tail below 0.25), the fp32 and int8 rankers gave
   the identical Hit@5 verdict in 400 of 400 queries and the identical Hit@1 verdict in 399.
 
-Caveat, and the reason this is not a substitute for the measurement: MiniLM embeddings are
+Caveat, and the reason it was never a substitute for the measurement: MiniLM embeddings are
 anisotropic — real cosines cluster far higher and closer together than the simulation's do,
-which compresses exactly the gaps that matter. Treat this as "int8 is unlikely to be the
-thing that breaks Hit@5", not as evidence that it did not.
+which compresses exactly the gaps that matter. It read as "int8 is unlikely to be the thing
+that breaks Hit@5"; the measurement above is what settles it.
+
+### What the measurement did surface
+
+On the current golden set, hybrid retrieval is **worse** than BM25 alone:
+
+| | Hit@1 | Hit@5 | MRR |
+|---|---|---|---|
+| lexical (BM25 only) | 52 / 66 = 79% | 64 / 66 = 97% | 0.865 |
+| hybrid (RRF fusion) | 39 / 66 = 59% | 59 / 66 = 89% | 0.719 |
+
+This predates this change — `main` reproduces it — and it is out of scope here, so nothing
+in this ADR acts on it. But it inverts the story Tier 1 tells. The background upgrade to
+hybrid is currently a downgrade in retrieval quality, and "an immediate BM25 answer beats a
+15-second wait for a dense one" is understating it: on this corpus the BM25 answer is also
+the better one. The corpus is 40 hand-written Q&A entries whose canonical question is in the
+passage text, which is close to the best case for lexical matching and gives the dense half
+little to add. Worth its own ADR: retune the fusion, weight BM25 above dense, or drop the
+dense half entirely and delete the model load with it.
 
 ## The failure mode this design is built around
 
@@ -122,11 +163,19 @@ should already have refused to ship the mismatch.
 
 ## Measurements
 
-Recorded on the machine that runs `./build.sh`; see the Trace tab's "Cold start" panel,
-which reports these from `performance.measure()` rather than from this document.
+Recorded headless (Chromium, no WebGPU, `node test/smoke.mjs`); see the Trace tab's "Cold
+start" panel, which reports these from `performance.measure()` rather than from this
+document.
 
 | | Before | After |
 |---|---|---|
-| Answerable at | 15,507 ms | see Trace tab |
-| Passage embed | 146 passages, in-browser | precomputed |
-| Retrieval | 2 ms | 2 ms |
+| Answerable at | 15,507 ms | **14 ms** in-page, 117 ms wall-clock |
+| Passage embed | 146 passages, in-browser | precomputed — 180 x 384 int8, decoded in 4 ms |
+| Hybrid available at | 15,507 ms (blocking) | 6,248 ms, in the background, input never blocked |
+| Retrieval | 2 ms | 1.2 ms |
+
+The 6,248 ms upgrade is mostly a failure: WebGPU is unavailable headless, so the first
+backend spends 5,147 ms discovering that before the cascade falls through to
+`transformers.js 2 · WASM · quantized`, which needs 1,030 ms. That whole sequence used to
+happen in front of the visitor. It now happens behind an already-answering page, and the
+Trace panel names each attempt that failed.
