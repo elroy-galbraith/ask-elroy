@@ -3,10 +3,10 @@
 const IDS = ["intro","differentiator","role-wanted","filter-question",
 "yoii-current","odin","odin-eval","negative-results","support-agent","conv-eval",
 "aeon","jse-chatbot","extraction-pipeline","silent-bugs","economist","career-timeline","team-scale",
-"ic-vs-manager","how-decide","risk-guardrails","communication","weaknesses",
+"ic-vs-manager","how-decide","risk-guardrails","communication","weaknesses","weakness-management","soft-skills",
 "publications","streaming-rag","jaia","open-source",
 "stack","finance-domain","education","languages","production-llm",
-"location","visa","salary","why-move","five-years","company-fit","start-date","contact","is-this-ai"];
+"location","visa","salary","why-move","five-years","company-fit","firm-size","start-date","contact","is-this-ai"];
 
 /* ---------- GOLDEN SET: paraphrased recruiter questions -> the doc that must be retrieved ----------
    Written as a recruiter would type them, not as the canonical questions are worded.
@@ -36,6 +36,9 @@ const GOLDEN = [
  ["how does he keep an llm safe in production","risk-guardrails"],
  ["can he present to business stakeholders","communication"],
  ["what is he bad at","weaknesses"],
+ ["how would he manage his weaknesses if we hired him","weakness-management"],
+ ["what are his soft skills","soft-skills"],
+ ["is he better suited to a startup or a large company","firm-size"],
  ["has he published any papers","publications"],
  ["how many citations does he have","publications"],
  ["what is his h index","publications"],
@@ -185,6 +188,9 @@ const PARAPHRASE = [
  ["what stops an automated decision from going badly wrong","risk-guardrails"],
  ["can he explain technical work to executives","communication"],
  ["where does he struggle","weaknesses"],
+ ["is he doing anything about his shortcomings","weakness-management"],
+ ["is he easy to get along with","soft-skills"],
+ ["would a tiny outfit or a corporation suit him better","firm-size"],
  ["does he write papers","publications"],
  ["what is his newest research about","streaming-rag"],
  ["does he sit on any committees","jaia"],
