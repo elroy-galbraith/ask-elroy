@@ -365,6 +365,7 @@ function showVisitorForm(card){
         <button type="submit" class="chip">Done</button>
         <button type="button" class="chip" id="vf-skip">Skip</button>
       </div>
+      <div style="font-size:.72rem;color:var(--color-dim);margin-top:8px;line-height:1.45">Logged with your questions &mdash; skip and ask anything.</div>
     </form>`;
   card.querySelector("#vf").onsubmit = e => {
     e.preventDefault();
