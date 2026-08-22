@@ -234,7 +234,7 @@ function renderFitPanel(panel){
   const rows = (panel.criteria || []).map(c => {
     const lo = Math.min(c.skeptic, c.advocate), hi = Math.max(c.skeptic, c.advocate);
     const badges = [
-      c.contested ? `<span class="fit-badge-contested" title="lenses disagree by ≥30">⚠ contested</span>` : "",
+      c.contested ? `<span class="fit-badge-contested" title="lenses disagree by ≥30, with at least one above the gap line">⚠ contested</span>` : "",
       c.gap ? `<span class="fit-badge-gap" title="likely gap">✕ gap</span>` : ""
     ].filter(Boolean).join(" &middot; ");
     return `<div class="fit-row">
@@ -257,7 +257,7 @@ function renderFitPanel(panel){
       <span class="fit-overall">${esc(String(panel.overall))}/100 · weighted across ${(panel.criteria||[]).length} criteria</span>
     </div>
     ${rows}
-    <div class="fit-legend">⚠ contested = lenses disagree by ≥30 &nbsp;·&nbsp; ✕ = likely gap</div>`;
+    <div class="fit-legend">⚠ contested = lenses disagree by ≥30 above the gap line &nbsp;·&nbsp; ✕ = likely gap</div>`;
 }
 
 function setStreamingCaret(el, on){

@@ -38,3 +38,21 @@ test('tiers at the boundaries and out-of-range scores clamp', () => {
   const partial = reconcile(one, [{ id: 'c1', score: 20 }], [{ id: 'c1', score: 40 }]);
   assert.equal(partial.tier, 'Partial fit'); // midpoint 30 < 50
 });
+
+test('a spread below the gap line is a gap, not a contest', () => {
+  const one = [{ id: 'c1', label: 'Power BI', weight: 3, requires: 'x' }];
+  // The CIBC case: skeptic 0 / advocate 35. |35-0| = 35 >= 30, but neither lens
+  // is above gapBelow (40) — they agree there is no evidence.
+  const floor = reconcile(one, [{ id: 'c1', score: 0 }], [{ id: 'c1', score: 35 }]);
+  assert.equal(floor.criteria[0].contested, false);
+  assert.equal(floor.criteria[0].gap, true);
+
+  // One lens above the line is real disagreement and still reads as contested.
+  const real = reconcile(one, [{ id: 'c1', score: 20 }], [{ id: 'c1', score: 70 }]);
+  assert.equal(real.criteria[0].contested, true);
+
+  // gap set by a lens, not by the midpoint, does not suppress contested either.
+  const flagged = reconcile(one, [{ id: 'c1', score: 45, gap: true }], [{ id: 'c1', score: 90 }]);
+  assert.equal(flagged.criteria[0].contested, true);
+  assert.equal(flagged.criteria[0].gap, true);
+});
