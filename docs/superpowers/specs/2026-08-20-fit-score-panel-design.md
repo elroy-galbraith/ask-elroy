@@ -126,7 +126,10 @@ Tier thresholds (single tunable config block, in the spirit of
 
 Per-criterion flags:
 
-- **contested** if `|advocate_i − skeptic_i| ≥ 30` (thin/ambiguous evidence)
+- **contested** if `|advocate_i − skeptic_i| ≥ 30` (thin/ambiguous evidence) **and**
+  at least one lens scored at or above the gap line (amended 2026-08-22: two
+  lenses both below it agree there is no evidence, so the row is a gap, not a
+  dispute — it was rendering as both)
 - **gap** if `midpoint_i < 40` OR either lens set its own `gap: true`
 
 Thresholds (72, 50, 30, 40) live together so they are tunable without hunting

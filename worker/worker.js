@@ -55,6 +55,7 @@ const FIT_JSON_RULES = `RULES — absolute.
 const SYSTEM_RUBRIC = `You extract a hiring rubric from a job description, to assess candidate Elroy Galbraith.
 ${FIT_JSON_RULES}
 Produce 4 to 6 criteria capturing what THIS role actually requires. Include genuine must-haves even if the candidate may not meet them — never shape the rubric around any candidate's strengths.
+Hard constraints the JD states are criteria too, not only skills: work location and onsite cadence, work authorization or right to work, security clearance, licensing, travel. When the JD states one as a requirement it is a must-have — extract it as its own criterion at weight 3.
 Output a JSON array. Each element: {"id":"c1","label":"<=6 words","weight":1|2|3,"requires":"one sentence"}.
 weight: 3 = must-have the JD stresses, 2 = important, 1 = nice-to-have. Use sequential ids c1, c2, ....`;
 
@@ -92,12 +93,18 @@ export function reconcile(rubric, skeptic, advocate, cfg = FIT_TIERS) {
     const a = aMap.get(String(c.id)) || {};
     const skep = clampScore(s.score), adv = clampScore(a.score);
     const midpoint = Math.round((skep + adv) / 2);
+    // Two lenses both under the gap line are not in dispute — they agree there
+    // is no real evidence. A 0-vs-35 spread at the floor is a different state
+    // from 45-vs-75, where one lens sees transferable experience and the other
+    // does not. Badging the first row "contested" AND "gap" asks the reader
+    // which of the two it is; it is a gap.
+    const bothBelowGap = skep < cfg.gapBelow && adv < cfg.gapBelow;
     const weight = [1, 2, 3].includes(Number(c.weight)) ? Number(c.weight) : 2;
     wsum += weight; acc += weight * midpoint;
     return {
       id: c.id, label: c.label, weight,
       skeptic: skep, advocate: adv, midpoint,
-      contested: Math.abs(adv - skep) >= cfg.contested,
+      contested: !bothBelowGap && Math.abs(adv - skep) >= cfg.contested,
       gap: midpoint < cfg.gapBelow || s.gap === true || a.gap === true,
       skepticNote: String(s.note || ''), advocateNote: String(a.note || '')
     };
