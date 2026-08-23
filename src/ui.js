@@ -215,7 +215,18 @@ function appendBotMsg(label, meta){
 function renderAnswerIntoMsg(el, text, hits){
   const body = el.querySelector(".msg-body");
   const html = esc(text)
-    .replace(/\[(\d+)\]/g, (m,n) => `<sup style="color:var(--color-accent);font-weight:600;cursor:help" title="${esc((hits[n-1]||{p:{text:""}}).p.text.slice(0,180))}">[${n}]</sup>`)
+    // One tooltip per index, not per bracket: [30, 41, 61] is three references
+    // the reader needs to see separately, and the fit assessment lists no
+    // passages below the answer, so this hover is the only way to read them.
+    .replace(CITE_RE, m => {
+      const refs = citeIndices(m).map(n => {
+        const hit = hits[n-1];
+        return hit
+          ? `<span style="cursor:help" title="${esc(hit.p.text.slice(0,180))}">${n}</span>`
+          : `<span style="color:var(--color-bad)" title="no passage ${n} was retrieved for this answer">${n}</span>`;
+      }).join(", ");
+      return `<sup style="color:var(--color-accent);font-weight:600">[${refs}]</sup>`;
+    })
     .split(/\n{2,}/).map(p => `<p style="margin:0 0 11px;font-size:15.5px;line-height:1.62;text-wrap:pretty">${p.replace(/\n/g,"<br>")}</p>`).join("");
   body.innerHTML = html;
 }
