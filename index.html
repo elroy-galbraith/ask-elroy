@@ -1391,6 +1391,16 @@ const state = {
 /* ---------------- text utils ---------------- */
 const STOP = new Set(("a an the and or but if is are was were be been being do does did doing have has had of in on at to for with about from by as into over under again further then once here there all any both each few more most other some such no nor not only own same so than too very can will just should now i you he she it we they me him her them my your his their our us what which who whom this that these those am tell give say please would could like want know").split(" "));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+// Citation markers. The prompt asks for one index per bracket, like [2], but a
+// model handed 180 passages groups them instead: [30, 41, 61, 136, 138]. Both
+// forms are citations, so there is one pattern and both readers use it — the
+// renderer (which makes each index hoverable) and the groundedness check
+// (which counts them). When these two disagreed, a grouped citation rendered
+// as dead text AND scored as an uncited sentence.
+const CITE_RE = /\[(\d+(?:\s*[,;]\s*\d+)*)\]/g;
+// "[30, 41]" -> [30, 41]. Takes a whole match from CITE_RE.
+const citeIndices = m => m.replace(/[\[\]\s]/g, "").split(/[,;]/).map(Number);
 function toks(s){
   return String(s).toLowerCase().replace(/[^a-z0-9+#\s]/g," ").split(/\s+/)
     .filter(w => w.length > 1 && !STOP.has(w))
@@ -1767,11 +1777,11 @@ async function generateScore(jdText, visitorName, visitorCo){
 
 /* ---------------- 6. groundedness check ---------------- */
 function checkGrounding(text, hits){
-  const cited = new Set((text.match(/\[(\d+)\]/g) || []).map(m => parseInt(m.slice(1,-1),10)));
+  const cited = new Set((text.match(CITE_RE) || []).flatMap(citeIndices));
   const valid = [...cited].filter(n => n >= 1 && n <= hits.length);
   const invalid = [...cited].filter(n => n < 1 || n > hits.length);
   const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 25);
-  const withCite = sentences.filter(s => /\[\d+\]/.test(s)).length;
+  const withCite = sentences.filter(s => (s.match(CITE_RE) || []).length > 0).length;
   return {
     cited: valid, invalid,
     coverage: sentences.length ? withCite / sentences.length : 1,
@@ -1995,7 +2005,18 @@ function appendBotMsg(label, meta){
 function renderAnswerIntoMsg(el, text, hits){
   const body = el.querySelector(".msg-body");
   const html = esc(text)
-    .replace(/\[(\d+)\]/g, (m,n) => `<sup style="color:var(--color-accent);font-weight:600;cursor:help" title="${esc((hits[n-1]||{p:{text:""}}).p.text.slice(0,180))}">[${n}]</sup>`)
+    // One tooltip per index, not per bracket: [30, 41, 61] is three references
+    // the reader needs to see separately, and the fit assessment lists no
+    // passages below the answer, so this hover is the only way to read them.
+    .replace(CITE_RE, m => {
+      const refs = citeIndices(m).map(n => {
+        const hit = hits[n-1];
+        return hit
+          ? `<span style="cursor:help" title="${esc(hit.p.text.slice(0,180))}">${n}</span>`
+          : `<span style="color:var(--color-bad)" title="no passage ${n} was retrieved for this answer">${n}</span>`;
+      }).join(", ");
+      return `<sup style="color:var(--color-accent);font-weight:600">[${refs}]</sup>`;
+    })
     .split(/\n{2,}/).map(p => `<p style="margin:0 0 11px;font-size:15.5px;line-height:1.62;text-wrap:pretty">${p.replace(/\n/g,"<br>")}</p>`).join("");
   body.innerHTML = html;
 }

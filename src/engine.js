@@ -53,6 +53,16 @@ const state = {
 /* ---------------- text utils ---------------- */
 const STOP = new Set(("a an the and or but if is are was were be been being do does did doing have has had of in on at to for with about from by as into over under again further then once here there all any both each few more most other some such no nor not only own same so than too very can will just should now i you he she it we they me him her them my your his their our us what which who whom this that these those am tell give say please would could like want know").split(" "));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+// Citation markers. The prompt asks for one index per bracket, like [2], but a
+// model handed 180 passages groups them instead: [30, 41, 61, 136, 138]. Both
+// forms are citations, so there is one pattern and both readers use it — the
+// renderer (which makes each index hoverable) and the groundedness check
+// (which counts them). When these two disagreed, a grouped citation rendered
+// as dead text AND scored as an uncited sentence.
+const CITE_RE = /\[(\d+(?:\s*[,;]\s*\d+)*)\]/g;
+// "[30, 41]" -> [30, 41]. Takes a whole match from CITE_RE.
+const citeIndices = m => m.replace(/[\[\]\s]/g, "").split(/[,;]/).map(Number);
 function toks(s){
   return String(s).toLowerCase().replace(/[^a-z0-9+#\s]/g," ").split(/\s+/)
     .filter(w => w.length > 1 && !STOP.has(w))
@@ -429,11 +439,11 @@ async function generateScore(jdText, visitorName, visitorCo){
 
 /* ---------------- 6. groundedness check ---------------- */
 function checkGrounding(text, hits){
-  const cited = new Set((text.match(/\[(\d+)\]/g) || []).map(m => parseInt(m.slice(1,-1),10)));
+  const cited = new Set((text.match(CITE_RE) || []).flatMap(citeIndices));
   const valid = [...cited].filter(n => n >= 1 && n <= hits.length);
   const invalid = [...cited].filter(n => n < 1 || n > hits.length);
   const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 25);
-  const withCite = sentences.filter(s => /\[\d+\]/.test(s)).length;
+  const withCite = sentences.filter(s => (s.match(CITE_RE) || []).length > 0).length;
   return {
     cited: valid, invalid,
     coverage: sentences.length ? withCite / sentences.length : 1,
