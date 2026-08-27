@@ -650,6 +650,7 @@ async function ask(text, opts){
         setStreamingCaret(msgEl, true);
         msgEl.scrollIntoView({behavior:"smooth", block:"nearest"});
       }, history);
+      state.genFailStreak = 0;
       trace.msGen = performance.now() - g0;
       trace.usage = out.usage;
       trace.ground = checkGrounding(out.text, r.hits);
@@ -684,14 +685,21 @@ async function ask(text, opts){
     } catch(err){
       setStreamingCaret(msgEl, false);
       const body = msgEl.querySelector(".msg-body");
-      body.innerHTML = `<p style="color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px">The generator failed (${esc(err.message)}). Falling back is safer than faking it — ask again and you will get the retrieved source passage instead.</p>`;
+      // A per-question streak, not a single strike: generate() already retried once
+      // internally, so reaching here means that retry also failed. One exhausted
+      // question is still just a blip; only consecutive ones justify giving up on
+      // generation for the rest of the session (issue #23).
+      state.genFailStreak++;
+      const disable = state.genFailStreak >= CONFIG.maxGenFailStreak;
+      body.innerHTML = `<p style="color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px">The generator failed (${esc(err.message)}). Falling back is safer than faking it — ask again and you will get the retrieved source passage instead.${disable ? " Generation has now failed repeatedly this session, so it is off for the rest of it." : ""}</p>`;
       if(CONFIG.generatorUrl){
         fetch(CONFIG.generatorUrl + "/log", {method:"POST",headers:{"content-type":"application/json"},
           body:JSON.stringify({question:q, outcome:"error", session_id:state.sessionId,
+            response: String(err.message || "").slice(0,500),
             ...(visitor && {visitor_name:visitor.name, visitor_co:visitor.company})})
         }).catch(()=>{});
       }
-      CONFIG.generatorUrl = "";
+      if(disable) CONFIG.generatorUrl = "";
     }
   } else {
     // retrieval-only mode

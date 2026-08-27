@@ -190,7 +190,7 @@ async function handleAdmin(request, env) {
   }
 }
 
-async function handleLog(request, env) {
+export async function handleLog(request, env) {
   let body;
   try { body = await request.json(); }
   catch { return json({ error: "invalid JSON" }, 400); }
@@ -198,13 +198,16 @@ async function handleLog(request, env) {
   const question = String(body.question || "").slice(0, MAX_Q).trim();
   const outcome = String(body.outcome || "");
   const session_id = String(body.session_id || "").slice(0, 100) || null;
+  // Only the error path sends this today — the reason generate() threw, so an
+  // error row is diagnosable instead of leaving response NULL (issue #23).
+  const response = String(body.response || "").slice(0, 500) || null;
 
   if (!question) return json({ error: "question required" }, 400);
   if (outcome !== "refused" && outcome !== "error") {
     return json({ error: "outcome must be 'refused' or 'error'" }, 400);
   }
 
-  await logRow(env, request, question, outcome, session_id, null, null);
+  await logRow(env, request, question, outcome, session_id, null, null, response);
   return json({ ok: true });
 }
 
