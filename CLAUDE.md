@@ -11,6 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 ./build.sh                                        # embed (if stale) → verify → concatenate src/* → index.html + syntax-check
 node test/smoke.mjs                               # headless Playwright smoke test (boot, answer, refusal, eval)
+node --test test/*.test.mjs                       # unit tests for worker/worker.js exports (no network)
 
 node tools/embed.mjs                              # force-regenerate src/vectors.js
 node tools/embed.mjs --verify                     # check src/vectors.js against the corpus (no model needed)
@@ -23,7 +24,7 @@ npm i -D playwright @huggingface/transformers && npx playwright install chromium
 otherwise the embed step is a no-op. It **fails hard** rather than warning if the vectors
 and the corpus disagree — see "Precomputed vectors" below.
 
-The smoke test opens `index.html` in a headless browser, waits up to 180 s for embeddings to load, then checks: boot readiness, an in-scope answer, a refusal, a prompt injection, and the evaluation suite.
+The smoke test opens `index.html` in a headless browser, waits up to 180 s for embeddings to load, then checks: boot readiness, an in-scope answer, a refusal, a prompt injection, and the evaluation suite. It stubs the Worker origin entirely, so it cannot catch provider-side regressions like sampling drift — see "Fit-score determinism" below.
 
 ## Deploy the generation proxy
 
@@ -122,6 +123,30 @@ a gate that refused golden queries whose every content word was in the passage.
 yoii" scores cosine 0.77 — that **no** gate can catch, because both signals measure topical
 similarity and neither measures answerability. They are expected to reach the model, which
 refuses them for lack of supporting passages. Do not tune trying to catch them.
+
+## Fit-score determinism
+
+The rubric/skeptic/advocate panel (`handleScore()` → `callJSON()` in `worker/worker.js`) is
+a scoring task, not prose generation, so it must not sample at the provider's default
+temperature. `callJSON()` sends `temperature: SCORE_TEMPERATURE` (0) and a fixed
+`seed: SCORE_SEED` on every panel call. Neither is a determinism guarantee — batching and
+MoE routing still introduce provider-side variance — they narrow the distribution, they
+don't collapse it. Full exact-input reproducibility needs a response cache (#30) on top of
+this.
+
+`test/fit-score-stability.mjs` scores a fixed job description N times against a **local**
+worker (`cd worker && npx wrangler dev`) and asserts the spread of `overall` stays inside a
+documented tolerance. It is not part of `node --test` — it costs real OpenRouter calls and
+its result depends on provider variance this repo doesn't control. Never point it at the
+deployed worker: repeated runs would add self-traffic to the production visitor log on top
+of the API spend.
+
+Measured 2026-08-28 against `google/gemini-3.7-flash` (`MODEL_DEFAULT`): 15 live runs on a
+fixed JD (two batches, 5 and 10) scored 42-53, spread 11 and 7 respectively, clustered at
+42-43 with occasional outlier jumps. That confirms the fix narrows variance without
+collapsing it, exactly as issue #28's "Honest limitation" predicted. The script's tolerance
+(15) is set from this data plus a small margin; re-measure and adjust if the default model
+changes.
 
 ## In-browser debugging
 

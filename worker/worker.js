@@ -22,6 +22,14 @@ const MAX_TOKENS = 3000;
 const MAX_Q = 500;
 const MAX_PASSAGES = 8;
 
+// The rubric/skeptic/advocate panel (callJSON) is a scoring task, not prose
+// generation: it must not sample creatively. temperature: 0 narrows the
+// provider's output distribution substantially but is not a determinism
+// guarantee (batching/MoE routing still vary) — seed is a best-effort nudge
+// on top, honoured inconsistently across providers/models. See issue #28.
+const SCORE_TEMPERATURE = 0;
+const SCORE_SEED = 42;
+
 const SYSTEM = `You are an assistant that answers questions about Elroy Galbraith on his behalf, for recruiters and hiring managers.
 
 RULES — these are absolute.
@@ -270,7 +278,7 @@ async function handleGenerate(request, env, ctx) {
   });
 }
 
-async function callJSON(env, model, system, user, attempts = 3) {
+export async function callJSON(env, model, system, user, attempts = 3) {
   // Retry on upstream errors AND on unparseable output: models (especially
   // free tiers) intermittently return empty content or prose with no JSON.
   // A fresh attempt usually recovers; only after all attempts fail do we throw,
@@ -288,6 +296,8 @@ async function callJSON(env, model, system, user, attempts = 3) {
           model,
           max_tokens: MAX_TOKENS,
           reasoning: { exclude: true },
+          temperature: SCORE_TEMPERATURE,
+          seed: SCORE_SEED,
           messages: [
             { role: "system", content: system },
             { role: "user", content: user }
