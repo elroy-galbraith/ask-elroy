@@ -80,8 +80,10 @@ Input gives a rubric (with ids) and the passages. Output a JSON array, one eleme
 const MAX_FIT_PASSAGES = 200;
 
 const FIT_TIERS = {
-  strong: 72,      // overall >= strong  -> "Strong fit"
-  moderate: 50,    // overall >= moderate -> "Moderate fit", else "Partial fit"
+  strong: 72,      // overall >= strong   -> "Strong fit"
+  moderate: 50,    // overall >= moderate -> "Moderate fit"
+  floor: 30,       // overall >= floor    -> "Partial fit", else "Not a fit"
+  matchBar: 50,    // a criterion's midpoint >= matchBar counts as a strong match — drives whether the narrative gets a "Strong matches" opening (issue #31)
   contested: 30,   // |advocate - skeptic| >= contested -> contested flag
   gapBelow: 40     // midpoint < gapBelow -> gap flag
 };
@@ -119,8 +121,14 @@ export function reconcile(rubric, skeptic, advocate, cfg = FIT_TIERS) {
   });
   const overall = wsum ? Math.round(acc / wsum) : 0;
   const tier = overall >= cfg.strong ? 'Strong fit'
-             : overall >= cfg.moderate ? 'Moderate fit' : 'Partial fit';
-  return { overall, tier, criteria };
+             : overall >= cfg.moderate ? 'Moderate fit'
+             : overall >= cfg.floor ? 'Partial fit' : 'Not a fit';
+  // Whether any single criterion clears the bar for an honest "Strong matches"
+  // narrative section (issue #31). Based on per-criterion midpoints, not the
+  // weighted overall, so one strong pillar can still carry the opening
+  // paragraph even when other criteria drag the weighted score down.
+  const hasStrongMatch = criteria.some(c => c.midpoint >= cfg.matchBar);
+  return { overall, tier, hasStrongMatch, criteria };
 }
 
 // normalizeScores([]) is what a refused or unparseable scorer call collapses to
