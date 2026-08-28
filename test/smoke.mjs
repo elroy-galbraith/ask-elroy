@@ -32,7 +32,12 @@ p.on('pageerror', e => errs.push('PAGEERROR: ' + e.message + '\n' + (e.stack || 
 const isWorker = u => u.hostname.endsWith('workers.dev') || u.hostname === 'stub.invalid';
 const stubbed = { generate: 0, log: 0, fit: 0, fitScore: 0 };
 const sse = body => ({ status: 200, contentType: 'text/event-stream; charset=utf-8', body });
-const json = body => ({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+const json = (body, status) => ({ status: status || 200, contentType: 'application/json', body: JSON.stringify(body) });
+
+// Set to N to fail the next N generate calls with a 502 before falling back to the
+// real stub response — used below to exercise generate()'s internal retry and the
+// ui.js failure streak (issue #23) without ever touching the real worker.
+let generateFailCount = 0;
 
 await p.route(isWorker, route => {
   const path = new URL(route.request().url()).pathname;
@@ -55,6 +60,10 @@ await p.route(isWorker, route => {
     return route.fulfill(sse('data: {"choices":[{"delta":{"content":"Strong matches: solid overlap [1]."}}]}\n\ndata: [DONE]\n\n'));
   }
   stubbed.generate++;
+  if (generateFailCount > 0) {
+    generateFailCount--;
+    return route.fulfill(json({ error: 'upstream 502' }, 502));
+  }
   // The shape the worker really emits, with a citation, so the streaming parser and
   // the groundedness check are exercised rather than skipped.
   return route.fulfill(sse(
@@ -258,6 +267,30 @@ if (gateCheck.skipped) {
     }
   }
 }
+
+// ---- A transient generator failure is retried, not a session-ending event ----
+// issue #23: one upstream blip used to disable CONFIG.generatorUrl permanently,
+// silently downgrading every later question to retrieval-only, and the error row
+// logged no reason. One failed attempt (retried internally by generate() before
+// any token streams) must recover silently; only failStreak-many *consecutive*
+// exhausted questions may disable generation.
+generateFailCount = 1; // one 502, then the retry succeeds
+const retried = await ask('how do you evaluate a chatbot');
+console.log('retry     :', retried);
+if (/generator failed/i.test(retried)) errs.push('RETRY: a single upstream blip surfaced as a failed turn instead of being retried');
+const genUrlAfterRetry = await p.evaluate(() => window.askElroy.CONFIG.generatorUrl);
+if (!genUrlAfterRetry) errs.push('RETRY: a single transient failure disabled generation for the rest of the session');
+
+const failStreak = await p.evaluate(() => window.askElroy.CONFIG.maxGenFailStreak);
+generateFailCount = failStreak * 2; // exhaust the internal retry on every one of the streak's questions
+let lastFail = '';
+for (let i = 0; i < failStreak; i++) lastFail = await ask('how do you evaluate a chatbot');
+console.log('streak    :', `${failStreak} consecutive exhausted questions -> "${lastFail.slice(0, 60)}"`);
+if (!/generator failed/i.test(lastFail)) errs.push('STREAK: expected the exhausted questions to surface an error');
+const genUrlAfterStreak = await p.evaluate(() => window.askElroy.CONFIG.generatorUrl);
+if (genUrlAfterStreak) errs.push(`STREAK: generation should be off after ${failStreak} consecutive exhausted failures`);
+generateFailCount = 0;
+await p.evaluate(() => { window.askElroy.CONFIG.generatorUrl ||= 'https://stub.invalid'; });
 
 // ---- Nothing may have reached the real worker ----
 // Every worker-bound request must have been answered by the stub above. If the two
