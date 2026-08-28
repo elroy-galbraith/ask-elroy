@@ -14,7 +14,7 @@ node tools/embed.mjs --ensure
 #    gets quietly worse. So it is a build error here, never a warning.
 node tools/embed.mjs --verify
 
-cat src/head.html src/corpus.js src/eval.js src/chunk.js src/vectors.js src/engine.js src/ui.js src/tail.html > index.html
+cat src/head.html src/corpus.js src/eval.js src/chunk.js src/vectors.js src/engine.js src/ui.js src/voice.js src/tail.html > index.html
 
 # extract the script block and syntax-check it
 sed -n '/^<script>$/,/^<\/script>$/p' index.html | sed '1d;$d' > /tmp/ask-elroy-bundle.js
