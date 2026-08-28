@@ -15,6 +15,14 @@
  *   wrangler secret put ADMIN_TOKEN
  *   wrangler deploy
  * Then paste the worker URL into CONFIG.generatorUrl in src/engine.js and rebuild.
+ *
+ * Migrating a database created before the is_synthetic column existed:
+ *   wrangler d1 execute ask-elroy-log --command "ALTER TABLE questions ADD COLUMN is_synthetic INTEGER NOT NULL DEFAULT 0"
+ *
+ * Smoke-checking a fresh deploy without polluting the visitor log — prefix
+ * session_id with "synthetic-":
+ *   curl -s -X POST https://<worker>/log -H 'content-type: application/json' \
+ *     -d '{"question":"probe","outcome":"error","session_id":"synthetic-deploy-check"}'
  */
 
 const MODEL_DEFAULT = "google/gemini-3.7-flash";
@@ -138,6 +146,18 @@ export function assertFullCoverage(rubric, scored, label) {
   }
 }
 
+// The only signal that marks a row synthetic: an explicit, reserved session_id
+// prefix — never a guess from user-agent or geolocation. Both are unreliable for
+// Elroy's own traffic (his dev devices geolocate to the same country he's based
+// in). test/smoke.mjs and the dev-browser opt-in (src/engine.js: setSyntheticMode())
+// both set this prefix on state.sessionId; a manual curl probe after a deploy
+// should pass it too. See CLAUDE.md > Synthetic traffic.
+const SYNTHETIC_SESSION_PREFIX = "synthetic-";
+
+export function isSynthetic(session_id) {
+  return typeof session_id === "string" && session_id.startsWith(SYNTHETIC_SESSION_PREFIX);
+}
+
 const cors = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET, POST, OPTIONS",
@@ -180,9 +200,13 @@ async function handleAdmin(request, env) {
     return json({ error: "unauthorized" }, 401);
   }
   if (!env.DB) return json({ error: "DB binding not configured" }, 503);
+  // Real traffic by default — pass ?synthetic=1 to see everything, including
+  // the smoke test / dev-browser rows, e.g. to confirm they're tagged correctly.
+  const includeSynthetic = new URL(request.url).searchParams.get("synthetic") === "1";
+  const where = includeSynthetic ? "" : "WHERE is_synthetic = 0";
   try {
     const result = await env.DB.prepare(
-      "SELECT id, ts, question, outcome, country, ua, session_id, visitor_name, visitor_co, response FROM questions ORDER BY ts DESC LIMIT 100"
+      `SELECT id, ts, question, outcome, country, ua, session_id, visitor_name, visitor_co, response, is_synthetic FROM questions ${where} ORDER BY ts DESC LIMIT 100`
     ).all();
     return json(result.results);
   } catch (e) {
@@ -511,11 +535,11 @@ async function collectResponse(stream) {
   return full.slice(0, 5000) || null;
 }
 
-async function logRow(env, request, question, outcome, session_id, visitor_name, visitor_co, response = null) {
+export async function logRow(env, request, question, outcome, session_id, visitor_name, visitor_co, response = null) {
   if (!env.DB) return;
   try {
     await env.DB.prepare(
-      "INSERT INTO questions (ts, question, outcome, country, ua, session_id, visitor_name, visitor_co, response) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO questions (ts, question, outcome, country, ua, session_id, visitor_name, visitor_co, response, is_synthetic) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     ).bind(
       new Date().toISOString(),
       question,
@@ -525,7 +549,8 @@ async function logRow(env, request, question, outcome, session_id, visitor_name,
       session_id,
       visitor_name,
       visitor_co,
-      response
+      response,
+      isSynthetic(session_id) ? 1 : 0
     ).run();
   } catch (_) { /* fire-and-forget — DB errors must never reach the client */ }
 }
