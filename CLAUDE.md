@@ -148,6 +148,39 @@ collapsing it, exactly as issue #28's "Honest limitation" predicted. The script'
 (15) is set from this data plus a small margin; re-measure and adjust if the default model
 changes.
 
+## Synthetic traffic
+
+`questions.is_synthetic` (`INTEGER NOT NULL DEFAULT 0`) separates real visitors from
+Elroy's own traffic — the smoke test, ad hoc curl probes after a deploy, and his own dev
+browser. Before this column existed, roughly 76% of logged rows were synthetic, and
+`country` couldn't tell the two apart either: Elroy's own devices geolocate to the same
+country he's based in.
+
+The signal is explicit, never inferred. `isSynthetic()` in `worker/worker.js` checks
+whether `session_id` starts with the reserved prefix `synthetic-`; `logRow()` is the only
+place that sets the column, from that one check.
+
+- `test/smoke.mjs` sets `localStorage["askElroySynthetic"]` via `page.addInitScript()`
+  before every run, so `state.sessionId` in `src/engine.js` picks up the prefix. This is
+  belt-and-suspenders on top of the route-level worker stub in that same file — smoke
+  traffic already never reaches the real worker; this keeps it tagged even if that stub
+  ever regresses.
+- On a dev machine, run `askElroy.setSyntheticMode(true)` once in the console and
+  reload; it persists in `localStorage`, so every future session in that browser is
+  tagged.
+- A manual curl probe after `wrangler deploy` should pass `"session_id":
+  "synthetic-deploy-check"` in the body, for the same reason — see the deploy comment
+  at the top of `worker/worker.js`.
+
+`GET /admin` filters `WHERE is_synthetic = 0` by default; pass `?synthetic=1` to see
+everything, synthetic rows included.
+
+This column is set at write time from that one explicit signal — it is never backfilled.
+Rows logged before 2026-08-28 are all `is_synthetic = 0` regardless of their real origin;
+that default doesn't mean they were real traffic, only that no synthetic signal was
+recorded for them. A `ua`-pattern classification of those old rows is possible but is an
+inferred label, not this column's value, and must never be presented as recorded fact.
+
 ## In-browser debugging
 
 The global `askElroy` exposes the full runtime without a rebuild:
@@ -157,4 +190,5 @@ askElroy.CONFIG.scopeThreshold = 0.40
 await askElroy.retrieve("does he need a visa")
 askElroy.runEval()
 askElroy.bootPerf            // per-stage cold-start timings, also on the Trace tab
+askElroy.setSyntheticMode(true)   // dev-browser opt-in — reload after calling; see "Synthetic traffic"
 ```
