@@ -63,7 +63,6 @@ const state = {
   bm25: null,
   backend: null,
   gens: 0, tokIn: 0, tokOut: 0, costUSD: 0,
-  genFailStreak: 0,
   qcache: new Map(),
   sessionId: loadSessionId()
 };
