@@ -175,6 +175,13 @@ place that sets the column, from that one check.
 `GET /admin` filters `WHERE is_synthetic = 0` by default; pass `?synthetic=1` to see
 everything, synthetic rows included.
 
+The same filter applies to a manual query, e.g. the refused-question breakdown this fix exists
+to make trustworthy:
+
+```bash
+wrangler d1 execute ask-elroy-log --command "SELECT question, COUNT(*) AS n FROM questions WHERE outcome = 'refused' AND is_synthetic = 0 GROUP BY question ORDER BY n DESC LIMIT 20"
+```
+
 This column is set at write time from that one explicit signal — it is never backfilled.
 Rows logged before 2026-08-28 are all `is_synthetic = 0` regardless of their real origin;
 that default doesn't mean they were real traffic, only that no synthetic signal was

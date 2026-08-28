@@ -11,13 +11,19 @@
  *   wrangler d1 create ask-elroy-log                          # once
  *   wrangler d1 execute ask-elroy-log --file schema.sql       # once (remote)
  *   wrangler d1 execute ask-elroy-log --local --file schema.sql  # once (local dev)
+ *
+ * Upgrading an existing deployment that predates the is_synthetic column: run this
+ * BEFORE `wrangler deploy` below picks up the new code, not after. logRow()'s INSERT
+ * names is_synthetic explicitly, and its DB errors are swallowed (fire-and-forget, so
+ * a failure never reaches the client) — deploy first and every visitor row silently
+ * stops logging until the column exists, with nothing louder than a 500 on /admin to
+ * notice it by.
+ *   wrangler d1 execute ask-elroy-log --command "ALTER TABLE questions ADD COLUMN is_synthetic INTEGER NOT NULL DEFAULT 0"
+ *
  *   wrangler secret put OPENROUTER_API_KEY
  *   wrangler secret put ADMIN_TOKEN
  *   wrangler deploy
  * Then paste the worker URL into CONFIG.generatorUrl in src/engine.js and rebuild.
- *
- * Migrating a database created before the is_synthetic column existed:
- *   wrangler d1 execute ask-elroy-log --command "ALTER TABLE questions ADD COLUMN is_synthetic INTEGER NOT NULL DEFAULT 0"
  *
  * Smoke-checking a fresh deploy without polluting the visitor log — prefix
  * session_id with "synthetic-":
