@@ -2977,7 +2977,9 @@ async function boot(){
 
   // the greeting lives in the hero now — the thread opens straight on the suggestions
   renderSuggest(null);
-  if(!restoreFitState()) mountVisitorCard();
+  let restored = false;
+  try { restored = restoreFitState(); } catch(e){ console.error("fit state restore failed —", e.message); }
+  if(!restored) mountVisitorCard();
 
   // Open in lexical mode. BM25 is not a holding pattern: it has its own calibrated
   // gate (CONFIG.lexThreshold) and answers most of the golden set on its own, so the
