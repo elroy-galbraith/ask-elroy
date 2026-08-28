@@ -132,7 +132,9 @@ function updateTracePanel(trace){
   $("#tg-decision").textContent = trace.answered ? "answer" : "refuse";
   $("#tg-retrieve").textContent = Math.round(trace.msRetrieve) + " ms";
   $("#tg-citations").textContent = trace.ground
-    ? (trace.ground.ok ? "valid · " + Math.round(trace.ground.coverage*100) + "% cited" : "FLAG — check answer")
+    ? (trace.ground.ok ? "valid · " + Math.round(trace.ground.coverage*100) + "% cited"
+      : trace.ground.declined ? "declined · no claim to cite"
+      : "FLAG — check answer")
     : (trace.answered ? "n/a" : "n/a");
   $("#tg-tokens").textContent = trace.usage ? trace.usage.input_tokens + " in / " + trace.usage.output_tokens + " out" : "—";
   $("#tg-cost").textContent = trace.usage ? "$" + cost.toFixed(5) : "$0.00000";
@@ -439,7 +441,7 @@ async function submitFit(jdText){
     renderAnswerIntoMsg(msgEl, out.text, fakeHits);
 
     const ground = checkGrounding(out.text, fakeHits);
-    if(!ground.ok){
+    if(!ground.ok && !ground.declined){
       const flag = document.createElement("p");
       flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
       flag.textContent = "Groundedness flag: this assessment did not cite its sources cleanly. Treat it with suspicion.";
@@ -660,7 +662,7 @@ async function ask(text, opts){
       renderAnswerIntoMsg(msgEl, out.text, r.hits);
       speak(out.text);
 
-      if(!trace.ground.ok){
+      if(!trace.ground.ok && !trace.ground.declined){
         const flag = document.createElement("p");
         flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
         flag.textContent = "Groundedness flag: this answer did not cite its sources cleanly. Treat it with suspicion and check the passages below.";
@@ -1160,6 +1162,6 @@ async function boot(){
   if(state.vecs.length) scheduleUpgrade();
 }
 
-window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, PARAPHRASE, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, looksLikeJobDescription, bootPerf, setSyntheticMode,
+window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, PARAPHRASE, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, checkGrounding, looksLikeJobDescription, bootPerf, setSyntheticMode,
   get busy(){ return busy; } };
 boot();

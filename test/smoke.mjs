@@ -149,6 +149,37 @@ console.log('citations :', citeRefs.map(r => r.n + (r.hasTitle ? '\u2713' : '\u2
 if (citeRefs.length !== 3) errs.push(`CITATIONS: ${citeRefs.length} hoverable indices rendered, expected 3 ([1] plus the grouped [1, 2])`);
 if (citeRefs.some(r => !r.hasTitle)) errs.push('CITATIONS: an index rendered with no passage tooltip');
 
+// ---- Groundedness check must not flag an honest decline as suspicious ----
+// worker/worker.js's SYSTEM prompt (rule 3) tells the model: when the passages
+// don't support an answer, say so plainly and give the contact email instead
+// of citing anything. That's a correct, deliberately uncited answer — the live
+// chat UI used to slap a "did not cite its sources cleanly ... treat it with
+// suspicion" warning on it anyway, because checkGrounding() only ever looked
+// at citation shape. Exercised directly against the real corpus's email
+// (window.askElroy.PROFILE isn't exposed, so this hardcodes the same address
+// CLAUDE.md and worker/worker.js do) rather than through a stubbed generate
+// call, since it is the pure citation-shape function that changed.
+const groundCheck = await p.evaluate(() => {
+  const A = window.askElroy;
+  const hits = [{}, {}];
+  return {
+    decline: A.checkGrounding(
+      'The provided passages do not contain that detail. Please reach out directly at elroy.galbraith@gmail.com.',
+      hits),
+    hallucinated: A.checkGrounding(
+      'He worked at a company called Vandelay Industries from 2011 to 2013.',
+      hits),
+    grounded: A.checkGrounding('He led the AI layer on a support agent project [1].', hits),
+  };
+});
+console.log('grounding :', `decline ok=${groundCheck.decline.ok} declined=${groundCheck.decline.declined}  ` +
+  `uncited-claim ok=${groundCheck.hallucinated.ok} declined=${groundCheck.hallucinated.declined}  ` +
+  `cited ok=${groundCheck.grounded.ok}`);
+if (!groundCheck.decline.declined) errs.push('GROUNDEDNESS: an honest "passages do not contain" decline (with contact email) was not recognized as a decline');
+if (groundCheck.hallucinated.declined) errs.push('GROUNDEDNESS: an uncited factual claim with no decline language was wrongly recognized as a decline');
+if (groundCheck.hallucinated.ok) errs.push('GROUNDEDNESS: an uncited factual claim was not flagged (ok=true) — citation-shape checking regressed');
+if (!groundCheck.grounded.ok || groundCheck.grounded.declined) errs.push('GROUNDEDNESS: a normal cited answer was incorrectly flagged as ungrounded or declined');
+
 await p.click('#tab-advanced');
 await p.click('#advtab-eval');
 await p.click('#runeval');
