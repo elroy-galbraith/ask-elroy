@@ -81,16 +81,19 @@ test('a mid-40s score still reads as a genuine partial fit', () => {
 
 test('hasStrongMatch reflects per-criterion midpoints, not the weighted overall', () => {
   const rubric2 = [
-    { id: 'c1', label: 'a', weight: 3, requires: 'x' },
-    { id: 'c2', label: 'b', weight: 1, requires: 'x' },
+    { id: 'c1', label: 'a', weight: 1, requires: 'x' },
+    { id: 'c2', label: 'b', weight: 3, requires: 'x' },
   ];
   // one strong pillar (c1 midpoint 70) dragged down by a weak c2 (midpoint 10)
+  // with swapped weights: overall = (1*70 + 3*10)/4 = 25, well below 50
+  // but hasStrongMatch is still true because c1's midpoint 70 clears 50
   const mixed = reconcile(
     rubric2,
     [{ id: 'c1', score: 60 }, { id: 'c2', score: 0 }],
     [{ id: 'c1', score: 80 }, { id: 'c2', score: 20 }]
   );
   assert.equal(mixed.criteria[0].midpoint, 70);
+  assert.equal(mixed.overall, 25);
   assert.equal(mixed.hasStrongMatch, true);
 
   const noneStrong = reconcile(
@@ -99,5 +102,6 @@ test('hasStrongMatch reflects per-criterion midpoints, not the weighted overall'
     [{ id: 'c1', score: 40 }, { id: 'c2', score: 20 }]
   );
   assert.ok(noneStrong.criteria.every(c => c.midpoint < 50));
+  assert.equal(noneStrong.overall, 19);
   assert.equal(noneStrong.hasStrongMatch, false);
 });
