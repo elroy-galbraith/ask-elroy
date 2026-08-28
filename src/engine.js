@@ -493,8 +493,18 @@ function checkGrounding(text, hits){
   const invalid = [...cited].filter(n => n < 1 || n > hits.length);
   const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 25);
   const withCite = sentences.filter(s => (s.match(CITE_RE) || []).length > 0).length;
+  // worker/worker.js's SYSTEM prompt (rule 3, and the fit/injection rules that mirror
+  // it) tells the model: when the passages don't support an answer, say so plainly and
+  // give the contact email instead of citing anything. That is a correct, deliberately
+  // uncited answer, not a grounding failure — so `ok` alone (which a zero-citation
+  // answer always fails) must not be the only signal a caller uses to decide whether to
+  // show a "treat with suspicion" warning. `declined` names that case the same way the
+  // rule shapes it: no citation attempted at all, paired with the email the rule pairs
+  // it with. `ok` itself is left unchanged so callers scoring known-answerable eval
+  // turns (where a decline IS a real failure) keep their existing strictness.
+  const declined = cited.size === 0 && text.includes(PROFILE.email);
   return {
-    cited: valid, invalid,
+    cited: valid, invalid, declined,
     coverage: sentences.length ? withCite / sentences.length : 1,
     ok: invalid.length === 0 && valid.length > 0
   };
