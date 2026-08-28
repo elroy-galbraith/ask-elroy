@@ -1382,6 +1382,27 @@ const CONFIG = {
   price: { in: 1.00, out: 5.00 }  // USD per 1M tokens (claude-haiku-4-5)
 };
 
+// Reserved session_id prefix the worker (worker/worker.js: SYNTHETIC_SESSION_PREFIX)
+// maps to is_synthetic=1. Set only by explicit opt-in below — never inferred.
+const SYNTHETIC_SESSION_PREFIX = "synthetic-";
+const SYNTHETIC_STORAGE_KEY = "askElroySynthetic";
+
+function isSyntheticDevBrowser(){
+  try { return localStorage.getItem(SYNTHETIC_STORAGE_KEY) === "1"; }
+  catch { return false; }
+}
+
+// Console helper for Elroy's own machines: askElroy.setSyntheticMode(true), then
+// reload. Persists in localStorage, so every future session on this browser is
+// tagged without touching any of the call sites that already thread session_id
+// through to the worker.
+function setSyntheticMode(on){
+  try {
+    if(on) localStorage.setItem(SYNTHETIC_STORAGE_KEY, "1");
+    else localStorage.removeItem(SYNTHETIC_STORAGE_KEY);
+  } catch {}
+}
+
 const state = {
   mode: "booting",            // booting | hybrid | lexical
   ready: false,
@@ -1393,7 +1414,7 @@ const state = {
   gens: 0, tokIn: 0, tokOut: 0, costUSD: 0,
   genFailStreak: 0,
   qcache: new Map(),
-  sessionId: crypto.randomUUID()
+  sessionId: (isSyntheticDevBrowser() ? SYNTHETIC_SESSION_PREFIX : "") + crypto.randomUUID()
 };
 
 /* ---------------- text utils ---------------- */
@@ -2974,7 +2995,7 @@ async function boot(){
   if(state.vecs.length) scheduleUpgrade();
 }
 
-window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, PARAPHRASE, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, looksLikeJobDescription, bootPerf,
+window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, PARAPHRASE, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, looksLikeJobDescription, bootPerf, setSyntheticMode,
   get busy(){ return busy; } };
 boot();
 </script>

@@ -87,6 +87,11 @@ p.on('request', r => {
   foreignOrigins.add(u.origin);
 });
 
+// Belt-and-suspenders on top of the route-level stub above: even if a request
+// ever slipped past it, this tags it is_synthetic=1 in the worker instead of
+// silently mixing into the real visitor log. See CLAUDE.md > Synthetic traffic.
+await p.addInitScript(() => { try { localStorage.setItem('askElroySynthetic', '1'); } catch {} });
+
 const tBoot = Date.now();
 await p.goto('file://' + root + '/index.html');
 // The page must be answerable off the precomputed vectors alone — no model, no CDN.
@@ -106,6 +111,12 @@ console.log('passages  :', boot.passages);
 console.log('cold start:', `${bootMs} ms wall-clock · ${boot.total} ms in-page · vectors decoded in ${boot.decode} ms`);
 if (boot.vecs !== boot.passages) errs.push(`VECTORS: ${boot.vecs} decoded for ${boot.passages} passages`);
 if (bootMs > 3000) errs.push(`COLD START: ${bootMs} ms to answerable — precomputed vectors should make this near-instant`);
+
+const sessionId = await p.evaluate(() => window.askElroy.state.sessionId);
+console.log('session   :', sessionId);
+if (!sessionId.startsWith('synthetic-')) {
+  errs.push(`SYNTHETIC FLAG: session_id "${sessionId}" missing the reserved prefix — smoke traffic would log as a real visitor if it ever reached the worker`);
+}
 
 async function ask(q) {
   await p.fill('#q', q);
