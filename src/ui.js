@@ -414,6 +414,13 @@ function loadFitState(){
   }
 }
 
+function appendGroundFlag(msgEl){
+  const flag = document.createElement("p");
+  flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
+  flag.textContent = "Groundedness flag: this assessment did not cite its sources cleanly. Treat it with suspicion.";
+  msgEl.querySelector(".msg-body").appendChild(flag);
+}
+
 async function submitFit(jdText){
   const text = jdText.trim();
   if(!text || busy) return;
@@ -459,12 +466,7 @@ async function submitFit(jdText){
     renderAnswerIntoMsg(msgEl, out.text, fakeHits);
 
     const ground = checkGrounding(out.text, fakeHits);
-    if(!ground.ok){
-      const flag = document.createElement("p");
-      flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
-      flag.textContent = "Groundedness flag: this assessment did not cite its sources cleanly. Treat it with suspicion.";
-      msgEl.querySelector(".msg-body").appendChild(flag);
-    }
+    if(!ground.ok) appendGroundFlag(msgEl);
     saveFitState(text, panel, out.text, ground.ok);
 
     state.gens++;
@@ -498,12 +500,7 @@ function restoreFitState(){
 
   const fakeHits = state.passages.map(p => ({ p }));
   renderAnswerIntoMsg(msgEl, saved.narrativeText, fakeHits);
-  if(saved.groundOk === false){
-    const flag = document.createElement("p");
-    flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
-    flag.textContent = "Groundedness flag: this assessment did not cite its sources cleanly. Treat it with suspicion.";
-    msgEl.querySelector(".msg-body").appendChild(flag);
-  }
+  if(saved.groundOk === false) appendGroundFlag(msgEl);
 
   const jd = $("#fit-jd");
   if(jd) jd.value = saved.jdText;
@@ -1172,7 +1169,7 @@ async function boot(){
   renderSuggest(null);
   let restored = false;
   try { restored = restoreFitState(); } catch(e){ console.error("fit state restore failed —", e.message); }
-  if(!restored) mountVisitorCard();
+  if(restored) showTab("chat"); else mountVisitorCard();
 
   // Open in lexical mode. BM25 is not a holding pattern: it has its own calibrated
   // gate (CONFIG.lexThreshold) and answers most of the golden set on its own, so the

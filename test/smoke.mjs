@@ -175,32 +175,6 @@ const rowCount = await p.locator('.fit-row').count();
 console.log('fit panel :', `tier "${tierTxt.trim()}"  |  ${rowCount} criteria`);
 if (!/fit/i.test(tierTxt) || rowCount < 1) { errs.push('FIT PANEL: tier or rows missing'); }
 
-// ---- sessionId and the fit scorecard survive a same-tab reload (issue #29) ----
-// sessionId used to be crypto.randomUUID() held only in memory: a reload lost the
-// scorecard and minted a fresh session, fragmenting analytics. It must now persist
-// in sessionStorage and restore without hitting the network again.
-const sessionIdBeforeReload = await p.evaluate(() => window.askElroy.state.sessionId);
-const fitCallsBeforeReload = stubbed.fit, scoreCallsBeforeReload = stubbed.fitScore;
-await p.reload();
-await p.waitForFunction(() => window.askElroy && window.askElroy.state.ready, null, { timeout: 15000 })
-       .catch(() => console.log('! reload did not report ready in 15s'));
-const sessionIdAfterReload = await p.evaluate(() => window.askElroy.state.sessionId);
-console.log('reload id :', sessionIdBeforeReload === sessionIdAfterReload
-  ? 'sessionId persisted' : `CHANGED ${sessionIdBeforeReload} -> ${sessionIdAfterReload}`);
-if (sessionIdBeforeReload !== sessionIdAfterReload) errs.push('SESSION ID: changed across a same-tab reload');
-
-await p.click('#tab-chat');
-const restoredTier = (await p.locator('.fit-tier').first().textContent().catch(() => '')) || '';
-const restoredRows = await p.locator('.fit-row').count();
-console.log('reload fit:', `tier "${restoredTier.trim()}" | ${restoredRows} criteria | ` +
-  `+${stubbed.fit - fitCallsBeforeReload} fit calls, +${stubbed.fitScore - scoreCallsBeforeReload} score calls`);
-if (!restoredTier || !/fit/i.test(restoredTier) || restoredRows < 1) {
-  errs.push('FIT RESTORE: scorecard missing after reload');
-}
-if (stubbed.fit !== fitCallsBeforeReload || stubbed.fitScore !== scoreCallsBeforeReload) {
-  errs.push('FIT RESTORE: reload re-hit the network instead of restoring from sessionStorage');
-}
-
 // ---- Pasting a JD into the chat box offers the fit check (never auto-routes) ----
 const JD = 'About the role: we are hiring a senior backend engineer to own our ' +
   'retrieval platform. What you will do: build and operate Go services on GCP, ' +
@@ -283,6 +257,32 @@ if (gateCheck.skipped) {
       errs.push(`GATE: "${name}" inScope=${got.inScope}, expected ${want} (cos ${got.conf}, cov ${got.cov})`);
     }
   }
+}
+
+// ---- sessionId and the fit scorecard survive a same-tab reload (issue #29) ----
+// sessionId used to be crypto.randomUUID() held only in memory: a reload lost the
+// scorecard and minted a fresh session, fragmenting analytics. It must now persist
+// in sessionStorage and restore without hitting the network again.
+const sessionIdBeforeReload = await p.evaluate(() => window.askElroy.state.sessionId);
+const fitCallsBeforeReload = stubbed.fit, scoreCallsBeforeReload = stubbed.fitScore;
+await p.reload();
+await p.waitForFunction(() => window.askElroy && window.askElroy.state.ready, null, { timeout: 15000 })
+       .catch(() => console.log('! reload did not report ready in 15s'));
+const sessionIdAfterReload = await p.evaluate(() => window.askElroy.state.sessionId);
+console.log('reload id :', sessionIdBeforeReload === sessionIdAfterReload
+  ? 'sessionId persisted' : `CHANGED ${sessionIdBeforeReload} -> ${sessionIdAfterReload}`);
+if (sessionIdBeforeReload !== sessionIdAfterReload) errs.push('SESSION ID: changed across a same-tab reload');
+
+await p.click('#tab-chat');
+const restoredTier = (await p.locator('.fit-tier').first().textContent().catch(() => '')) || '';
+const restoredRows = await p.locator('.fit-row').count();
+console.log('reload fit:', `tier "${restoredTier.trim()}" | ${restoredRows} criteria | ` +
+  `+${stubbed.fit - fitCallsBeforeReload} fit calls, +${stubbed.fitScore - scoreCallsBeforeReload} score calls`);
+if (!restoredTier || !/fit/i.test(restoredTier) || restoredRows < 1) {
+  errs.push('FIT RESTORE: scorecard missing after reload');
+}
+if (stubbed.fit !== fitCallsBeforeReload || stubbed.fitScore !== scoreCallsBeforeReload) {
+  errs.push('FIT RESTORE: reload re-hit the network instead of restoring from sessionStorage');
 }
 
 // ---- Nothing may have reached the real worker ----

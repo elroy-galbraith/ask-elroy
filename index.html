@@ -534,7 +534,7 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
             <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">tokens</span><span id="sb-toks">0 / 0</span></div>
             <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--color-dim)">spend</span><span id="sb-spend">$0.00000</span></div>
           </div>
-          <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Your questions and the answers are logged to a private database, with country and browser string. No cookies, no third-party analytics, nothing that follows you across visits. This tab keeps your session id and — if you've run one — your last fit check (the job description and its scorecard) in sessionStorage, so a reload won't lose them. Closing the tab discards both; the chat thread itself is never saved and a reload starts it over.</p>
+          <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--color-dim)">Your questions and the answers are logged to a private database, with country and browser string. No cookies, no third-party analytics, nothing that follows you across visits. This tab keeps your session id and — if you've run one — your last fit check (the job description, its scorecard, and the written assessment) in sessionStorage, so a reload restores that exchange instead of losing it. Closing the tab discards both; the rest of the chat thread is never saved and a reload clears it.</p>
         </div>
       </div>
     </div>
@@ -2221,6 +2221,13 @@ function loadFitState(){
   }
 }
 
+function appendGroundFlag(msgEl){
+  const flag = document.createElement("p");
+  flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
+  flag.textContent = "Groundedness flag: this assessment did not cite its sources cleanly. Treat it with suspicion.";
+  msgEl.querySelector(".msg-body").appendChild(flag);
+}
+
 async function submitFit(jdText){
   const text = jdText.trim();
   if(!text || busy) return;
@@ -2266,12 +2273,7 @@ async function submitFit(jdText){
     renderAnswerIntoMsg(msgEl, out.text, fakeHits);
 
     const ground = checkGrounding(out.text, fakeHits);
-    if(!ground.ok){
-      const flag = document.createElement("p");
-      flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
-      flag.textContent = "Groundedness flag: this assessment did not cite its sources cleanly. Treat it with suspicion.";
-      msgEl.querySelector(".msg-body").appendChild(flag);
-    }
+    if(!ground.ok) appendGroundFlag(msgEl);
     saveFitState(text, panel, out.text, ground.ok);
 
     state.gens++;
@@ -2305,12 +2307,7 @@ function restoreFitState(){
 
   const fakeHits = state.passages.map(p => ({ p }));
   renderAnswerIntoMsg(msgEl, saved.narrativeText, fakeHits);
-  if(saved.groundOk === false){
-    const flag = document.createElement("p");
-    flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
-    flag.textContent = "Groundedness flag: this assessment did not cite its sources cleanly. Treat it with suspicion.";
-    msgEl.querySelector(".msg-body").appendChild(flag);
-  }
+  if(saved.groundOk === false) appendGroundFlag(msgEl);
 
   const jd = $("#fit-jd");
   if(jd) jd.value = saved.jdText;
@@ -2979,7 +2976,7 @@ async function boot(){
   renderSuggest(null);
   let restored = false;
   try { restored = restoreFitState(); } catch(e){ console.error("fit state restore failed —", e.message); }
-  if(!restored) mountVisitorCard();
+  if(restored) showTab("chat"); else mountVisitorCard();
 
   // Open in lexical mode. BM25 is not a holding pattern: it has its own calibrated
   // gate (CONFIG.lexThreshold) and answers most of the golden set on its own, so the
