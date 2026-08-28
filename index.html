@@ -85,6 +85,13 @@ body{background:var(--color-bg);color:var(--color-text);font-family:var(--font-b
 .caret{display:inline-block;width:7px;height:15px;background:var(--color-accent);
   vertical-align:-2px;animation:blink .9s steps(1) infinite}
 
+/* --- voice controls --- */
+.btn-icon{background:transparent;border:1px solid var(--color-divider);color:var(--color-text);padding:0 16px;font-size:17px;line-height:1}
+.btn-icon:hover{border-color:var(--color-accent)}
+.btn-icon[aria-pressed="true"]{border-color:var(--color-accent);color:var(--color-accent)}
+@keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--color-bad) 45%,transparent)}50%{box-shadow:0 0 0 7px transparent}}
+#mic-btn.mic-live{border-color:var(--color-bad);color:var(--color-bad);animation:mic-pulse 1.1s ease-in-out infinite}
+
 /* --- eyebrow / label text --- */
 .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent-700);margin-bottom:8px}
 .section-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-accent)}
@@ -677,15 +684,23 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
 <!-- fixed input tray -->
 <div id="input-tray" style="position:fixed;left:0;right:0;bottom:0;background:linear-gradient(to bottom,transparent,var(--color-bg) 34%);padding:36px 40px 22px;pointer-events:none">
   <div style="max-width:1200px;margin:0 auto;pointer-events:auto">
-    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;max-width:860px">
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:10px;max-width:860px">
       <label class="sr" for="q">Ask a question</label>
       <input class="input" type="text" id="q" placeholder="Ask about his work, his stack, work authorization, what he wants next…" autocomplete="off">
+      <button class="btn-icon blueprint" type="button" id="mic-btn" title="Ask by voice" aria-pressed="false" style="display:none">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        🎤
+      </button>
+      <button class="btn-icon blueprint" type="button" id="voice-btn" title="Read answers aloud" aria-pressed="false" style="display:none">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span id="voice-btn-icon">🔇</span>
+      </button>
       <button class="btn btn-primary blueprint" style="padding:0 28px;font-size:15px" id="submit-btn">
         <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
         Ask
       </button>
     </div>
-    <div style="max-width:860px;margin-top:9px;font-size:11.5px;color:var(--color-dim)">Built by Elroy Galbraith as a working sample · retrieval and embedding run in your browser, generation is proxied so no key is exposed · <a id="fmail" href="#" style="color:var(--color-dim)"></a></div>
+    <div style="max-width:860px;margin-top:9px;font-size:11.5px;color:var(--color-dim)">Built by Elroy Galbraith as a working sample · retrieval and embedding run in your browser, generation is proxied so no key is exposed · <a id="fmail" href="#" style="color:var(--color-dim)"></a> <span id="voice-hint" class="mono" style="margin-left:8px;color:var(--color-accent)"></span></div>
   </div>
 </div>
 
@@ -2405,6 +2420,7 @@ async function ask(text, opts){
   const q = String(text).trim();
   if(!q || busy) return;
   visitorDismissed = true;
+  stopSpeaking();   // a new question interrupts whatever the agent was still saying
 
   // A pasted JD gets the fit check offered, not the ask loop run on it.
   if(!(opts && opts.skipFitOffer) && CONFIG.generatorUrl && looksLikeJobDescription(q)){
@@ -2461,7 +2477,8 @@ async function ask(text, opts){
           " and coverage " + r.cov.toFixed(3) + " < " + CONFIG.covThreshold.toFixed(2)
         : "coverage " + r.cov.toFixed(3) + " < " + CONFIG.lexThreshold.toFixed(2))
       + " · refused before the model call · $0.00000";
-    appendRefusal(meta);
+    const refusalEl = appendRefusal(meta);
+    speak(refusalEl.querySelector(".msg-body").textContent);
     updateTracePanel(trace);
     if(CONFIG.generatorUrl){
       fetch(CONFIG.generatorUrl + "/log", {
@@ -2495,6 +2512,7 @@ async function ask(text, opts){
       trace.ground = checkGrounding(out.text, r.hits);
       setStreamingCaret(msgEl, false);
       renderAnswerIntoMsg(msgEl, out.text, r.hits);
+      speak(out.text);
 
       if(!trace.ground.ok){
         const flag = document.createElement("p");
@@ -2546,6 +2564,7 @@ async function ask(text, opts){
     const docIdx = IDS.indexOf(r.hits[0].p.docId);
     const body = msgEl.querySelector(".msg-body");
     body.innerHTML = BANK[docIdx].a + `<p style="color:var(--color-dim);font-size:.79rem;border-top:1px dashed var(--color-divider);padding-top:8px;margin-top:8px">Retrieval-only mode: that is the source passage verbatim, not generated prose. ${CONFIG.generatorUrl ? "The session cost cap was reached." : "No generator endpoint is configured."}</p>`;
+    speak(BANK[docIdx].a);
     renderCitesInMsg(msgEl, r.hits, passCount);
     addTraceLink(msgEl);
   }
@@ -2998,6 +3017,133 @@ async function boot(){
 window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, PARAPHRASE, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, looksLikeJobDescription, bootPerf, setSyntheticMode,
   get busy(){ return busy; } };
 boot();
+
+/* =====================================================================
+   Voice interaction — Web Speech API only: no new backend, no new
+   secret, no new spend. Two independent pieces:
+     STT  mic button -> SpeechRecognition -> one transcript -> ask()
+     TTS  finished answer -> speechSynthesis, opt-in and off by default
+   Chrome/Edge ship SpeechRecognition; Safari and Firefox mostly do not,
+   so both buttons stay hidden (display:none in src/head.html) unless
+   the constructor the browser actually needs is present — same
+   graceful-degradation shape as the hybrid/lexical retrieval fallback:
+   a working page either way, never an error state.
+   ===================================================================== */
+
+const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+const VOICE_OUT_KEY = "askElroyVoiceOut";
+
+const voice = {
+  supported: { stt: !!SpeechRecognitionCtor, tts: "speechSynthesis" in window },
+  listening: false,
+  speakOn: false
+};
+
+// Answers carry citation markers ([1], [30, 41]) and the retrieval-only fallback
+// hands over raw answer HTML — neither belongs in speech.
+function stripForSpeech(text){
+  return String(text)
+    .replace(CITE_RE, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function setVoiceHint(text){
+  const el = $("#voice-hint");
+  if(el) el.textContent = text || "";
+}
+
+function stopSpeaking(){
+  if(voice.supported.tts) speechSynthesis.cancel();
+}
+
+function speak(text){
+  if(!voice.supported.tts || !voice.speakOn) return;
+  const clean = stripForSpeech(text);
+  if(!clean) return;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(new SpeechSynthesisUtterance(clean));
+}
+
+function setSpeakOn(on){
+  voice.speakOn = on;
+  try{ localStorage.setItem(VOICE_OUT_KEY, on ? "1" : "0"); } catch {}
+  const btn = $("#voice-btn"), icon = $("#voice-btn-icon");
+  if(icon) icon.textContent = on ? "🔊" : "🔇";
+  if(btn){
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.title = on ? "Voice replies on — click to mute" : "Voice replies off — click to enable";
+  }
+  if(!on) stopSpeaking();
+}
+
+function initVoiceOut(){
+  const btn = $("#voice-btn");
+  if(!btn || !voice.supported.tts) return;
+  btn.style.display = "";
+  let saved = false;
+  try{ saved = localStorage.getItem(VOICE_OUT_KEY) === "1"; } catch {}
+  setSpeakOn(saved);
+  btn.onclick = () => setSpeakOn(!voice.speakOn);
+}
+
+function initMic(){
+  const btn = $("#mic-btn");
+  if(!btn || !voice.supported.stt) return;
+  btn.style.display = "";
+
+  const rec = new SpeechRecognitionCtor();
+  rec.lang = (navigator.language || "en-US");
+  rec.interimResults = true;
+  rec.maxAlternatives = 1;
+
+  const qEl = $("#q");
+
+  function setListening(on){
+    voice.listening = on;
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.classList.toggle("mic-live", on);
+    setVoiceHint(on ? "listening…" : "");
+  }
+
+  rec.onresult = e => {
+    let finalText = "", interim = "";
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const r = e.results[i];
+      if(r.isFinal) finalText += r[0].transcript;
+      else interim += r[0].transcript;
+    }
+    if(qEl) qEl.value = (finalText || interim).trim();
+    if(finalText.trim()) rec.stop();
+  };
+  rec.onend = () => {
+    setListening(false);
+    const q = qEl ? qEl.value.trim() : "";
+    if(q) ask(q);
+  };
+  rec.onerror = e => {
+    setListening(false);
+    setVoiceHint(e.error === "not-allowed" || e.error === "service-not-allowed"
+      ? "microphone permission denied"
+      : "voice input error: " + e.error);
+  };
+
+  btn.onclick = () => {
+    if(voice.listening){ rec.stop(); return; }
+    stopSpeaking();   // don't record over the agent's own reply
+    if(qEl) qEl.value = "";
+    setListening(true);
+    try{ rec.start(); }
+    catch(err){ setListening(false); setVoiceHint("could not start microphone"); }
+  };
+}
+
+initMic();
+initVoiceOut();
+
+window.askElroy.voice = voice;
+window.askElroy.speak = speak;
 </script>
 </body>
 </html>

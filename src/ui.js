@@ -566,6 +566,7 @@ async function ask(text, opts){
   const q = String(text).trim();
   if(!q || busy) return;
   visitorDismissed = true;
+  stopSpeaking();   // a new question interrupts whatever the agent was still saying
 
   // A pasted JD gets the fit check offered, not the ask loop run on it.
   if(!(opts && opts.skipFitOffer) && CONFIG.generatorUrl && looksLikeJobDescription(q)){
@@ -622,7 +623,8 @@ async function ask(text, opts){
           " and coverage " + r.cov.toFixed(3) + " < " + CONFIG.covThreshold.toFixed(2)
         : "coverage " + r.cov.toFixed(3) + " < " + CONFIG.lexThreshold.toFixed(2))
       + " · refused before the model call · $0.00000";
-    appendRefusal(meta);
+    const refusalEl = appendRefusal(meta);
+    speak(refusalEl.querySelector(".msg-body").textContent);
     updateTracePanel(trace);
     if(CONFIG.generatorUrl){
       fetch(CONFIG.generatorUrl + "/log", {
@@ -656,6 +658,7 @@ async function ask(text, opts){
       trace.ground = checkGrounding(out.text, r.hits);
       setStreamingCaret(msgEl, false);
       renderAnswerIntoMsg(msgEl, out.text, r.hits);
+      speak(out.text);
 
       if(!trace.ground.ok){
         const flag = document.createElement("p");
@@ -707,6 +710,7 @@ async function ask(text, opts){
     const docIdx = IDS.indexOf(r.hits[0].p.docId);
     const body = msgEl.querySelector(".msg-body");
     body.innerHTML = BANK[docIdx].a + `<p style="color:var(--color-dim);font-size:.79rem;border-top:1px dashed var(--color-divider);padding-top:8px;margin-top:8px">Retrieval-only mode: that is the source passage verbatim, not generated prose. ${CONFIG.generatorUrl ? "The session cost cap was reached." : "No generator endpoint is configured."}</p>`;
+    speak(BANK[docIdx].a);
     renderCitesInMsg(msgEl, r.hits, passCount);
     addTraceLink(msgEl);
   }
