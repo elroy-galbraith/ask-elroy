@@ -37,6 +37,23 @@ const CONFIG = {
   price: { in: 1.00, out: 5.00 }  // USD per 1M tokens (claude-haiku-4-5)
 };
 
+/* ---------------- session identity ----------------
+   sessionStorage, not localStorage (issue #29): survives a reload in the same
+   tab, dies when the tab closes — the correct boundary for something called a
+   session. No TTL — tab lifetime is the boundary. Private mode and blocked
+   site data throw on *access*, not merely return null, so this is wrapped. */
+function loadSessionId(){
+  try {
+    const existing = sessionStorage.getItem("askElroy.sessionId");
+    if(existing) return existing;
+    const fresh = crypto.randomUUID();
+    sessionStorage.setItem("askElroy.sessionId", fresh);
+    return fresh;
+  } catch(e){
+    return crypto.randomUUID();
+  }
+}
+
 const state = {
   mode: "booting",            // booting | hybrid | lexical
   ready: false,
@@ -46,8 +63,9 @@ const state = {
   bm25: null,
   backend: null,
   gens: 0, tokIn: 0, tokOut: 0, costUSD: 0,
+  genFailStreak: 0,
   qcache: new Map(),
-  sessionId: crypto.randomUUID()
+  sessionId: loadSessionId()
 };
 
 /* ---------------- text utils ---------------- */
