@@ -39,6 +39,9 @@ const json = (body, status) => ({ status: status || 200, contentType: 'applicati
 // ui.js failure streak (issue #23) without ever touching the real worker.
 let generateFailCount = 0;
 
+// The body of the most recent /fit/score request.
+let lastScoreBody = null;
+
 await p.route(isWorker, route => {
   const path = new URL(route.request().url()).pathname;
   if (path === '/log') {
@@ -47,6 +50,9 @@ await p.route(isWorker, route => {
   }
   if (path === '/fit/score') {
     stubbed.fitScore++;
+    // Kept so the corpus_sha assertion below is about what the page actually sent,
+    // not about what the source reads like (issue #30).
+    try { lastScoreBody = route.request().postDataJSON(); } catch { lastScoreBody = null; }
     return route.fulfill(json({
       overall: 63, tier: 'Moderate fit',
       criteria: [
@@ -256,6 +262,18 @@ const tierTxt = (await p.textContent('.fit-tier')) || '';
 const rowCount = await p.locator('.fit-row').count();
 console.log('fit panel :', `tier "${tierTxt.trim()}"  |  ${rowCount} criteria`);
 if (!/fit/i.test(tierTxt) || rowCount < 1) { errs.push('FIT PANEL: tier or rows missing'); }
+
+// The page must declare which corpus it is on: without it the worker has no way to
+// retire a cached panel when BANK moves, so it declines to cache at all and every
+// submission pays again (issue #30). Only the browser half is checkable here — the
+// worker is stubbed; test/fit-cache-endpoint.test.mjs covers the other side.
+const sentSha = lastScoreBody && lastScoreBody.corpus_sha;
+const bundleSha = await p.evaluate(() => typeof VECTORS !== 'undefined' ? VECTORS.corpusSha256 : null);
+console.log('fit cache :', `corpus_sha sent ${String(sentSha).slice(0, 12)}…`);
+if (!sentSha) errs.push('FIT CACHE: /fit/score was sent without a corpus_sha');
+else if (bundleSha && sentSha !== bundleSha) {
+  errs.push(`FIT CACHE: corpus_sha ${sentSha.slice(0, 12)}… is not the bundle's ${String(bundleSha).slice(0, 12)}…`);
+}
 
 // ---- Pasting a JD into the chat box offers the fit check (never auto-routes) ----
 const JD = 'About the role: we are hiring a senior backend engineer to own our ' +
