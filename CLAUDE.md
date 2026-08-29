@@ -149,6 +149,45 @@ yoii" scores cosine 0.77 — that **no** gate can catch, because both signals me
 similarity and neither measures answerability. They are expected to reach the model, which
 refuses them for lack of supporting passages. Do not tune trying to catch them.
 
+## The fit-input floor
+
+The Fit tab spends two paid passes per submission — the rubric/skeptic/advocate panel and
+the narrative. Before issue #25 it submitted whatever was in `#fit-jd`: a visitor sent a
+**single word** and got the whole pipeline, then a courteous scorecard explaining that the
+job description consisted of one word.
+
+`fitInputTooThin()` (`src/ui.js`) now gates `submitFit()` before `busy` is set or any tab
+switches, and `jdTooThin()` (`worker/worker.js`) applies the identical rule to `/fit` and
+`/fit/score` so the endpoints can't be driven into paid calls regardless of client state.
+Same two constants on both sides, deliberately: a server floor that disagreed with the
+browser's would either reject what the page had just promised to score or admit what it had
+just refused. Rejection is not silent — `#fit-hint` says what the field wants ("Paste the
+full job description — a title alone isn't enough to score against") and clears on the next
+keystroke.
+
+The rule is **a floor on substance, not a classifier**: at least 8 words *or* 50 characters.
+
+- It does **not** reuse `looksLikeJobDescription()`. That predicate is tuned for precision on
+  the *chat* box, where a false positive costs one wrong offer; it demands 220 characters plus
+  corroborating markers, which would refuse a terse but real posting — exactly what someone on
+  this tab is asking to have scored. The smoke test's own short JD ("Senior Go engineer
+  building RAG systems; must lead a small team.", 11 words) is the ceiling the floor has to
+  stay under.
+- JD vocabulary does **not** earn a shorter input a pass either. "Requirements: 5+ years of
+  experience" is six words and three `JD_MARKERS` hits, and scoring a fragment produces exactly
+  the artefact this floor exists to prevent.
+- Words **or** characters, because a Japanese posting carries its substance without spaces. A
+  word count alone would refuse every CJK job description outright; a CJK role title runs ~15
+  characters, a CJK posting far more.
+
+Anything above the floor is admitted and left to the model to answer honestly. Refusing
+mid-length input would mean guessing at whether a posting written in unfamiliar vocabulary is
+genuine, and that is the error this codebase pays for twice over.
+
+`askElroy.fitInputTooThin(text)` exposes it in the console. `test/fit-jd-floor.test.mjs` covers
+the worker half offline; `test/smoke.mjs` asserts the browser half by request count — a one-word
+submission must reach the worker **zero** times — not by what the page renders.
+
 ## Fit-score determinism
 
 The rubric/skeptic/advocate panel (`handleScore()` → `callJSON()` in `worker/worker.js`) is
@@ -223,4 +262,5 @@ await askElroy.retrieve("does he need a visa")
 askElroy.runEval()
 askElroy.bootPerf            // per-stage cold-start timings, also on the Trace tab
 askElroy.setSyntheticMode(true)   // dev-browser opt-in — reload after calling; see "Synthetic traffic"
+askElroy.fitInputTooThin("Engineer")   // the Fit tab's pre-spend floor — see "The fit-input floor"
 ```
