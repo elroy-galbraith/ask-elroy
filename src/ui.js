@@ -132,7 +132,9 @@ function updateTracePanel(trace){
   $("#tg-decision").textContent = trace.answered ? "answer" : "refuse";
   $("#tg-retrieve").textContent = Math.round(trace.msRetrieve) + " ms";
   $("#tg-citations").textContent = trace.ground
-    ? (trace.ground.ok ? "valid · " + Math.round(trace.ground.coverage*100) + "% cited" : "FLAG — check answer")
+    ? (trace.ground.ok ? "valid · " + Math.round(trace.ground.coverage*100) + "% cited"
+      : trace.ground.declined ? "declined · no claim to cite"
+      : "FLAG — check answer")
     : (trace.answered ? "n/a" : "n/a");
   $("#tg-tokens").textContent = trace.usage ? trace.usage.input_tokens + " in / " + trace.usage.output_tokens + " out" : "—";
   $("#tg-cost").textContent = trace.usage ? "$" + cost.toFixed(5) : "$0.00000";
@@ -399,9 +401,9 @@ function showVisitorForm(card){
    *access*, not merely return null. No TTL — tab lifetime is the boundary. */
 const FIT_STATE_KEY = "askElroy.fitState";
 
-function saveFitState(jdText, panel, narrativeText, groundOk){
+function saveFitState(jdText, panel, narrativeText, groundOk, groundDeclined){
   try {
-    sessionStorage.setItem(FIT_STATE_KEY, JSON.stringify({ jdText, panel, narrativeText, groundOk }));
+    sessionStorage.setItem(FIT_STATE_KEY, JSON.stringify({ jdText, panel, narrativeText, groundOk, groundDeclined }));
   } catch(e){ /* private mode, blocked storage, quota — the scorecard just won't survive a reload */ }
 }
 
@@ -466,8 +468,8 @@ async function submitFit(jdText){
     renderAnswerIntoMsg(msgEl, out.text, fakeHits);
 
     const ground = checkGrounding(out.text, fakeHits);
-    if(!ground.ok) appendGroundFlag(msgEl);
-    saveFitState(text, panel, out.text, ground.ok);
+    if(!ground.ok && !ground.declined) appendGroundFlag(msgEl);
+    saveFitState(text, panel, out.text, ground.ok, ground.declined);
 
     state.gens++;
     if(out.usage){
@@ -500,7 +502,7 @@ function restoreFitState(){
 
   const fakeHits = state.passages.map(p => ({ p }));
   renderAnswerIntoMsg(msgEl, saved.narrativeText, fakeHits);
-  if(saved.groundOk === false) appendGroundFlag(msgEl);
+  if(saved.groundOk === false && !saved.groundDeclined) appendGroundFlag(msgEl);
 
   const jd = $("#fit-jd");
   if(jd) jd.value = saved.jdText;
@@ -608,6 +610,7 @@ async function ask(text, opts){
   const q = String(text).trim();
   if(!q || busy) return;
   visitorDismissed = true;
+  stopSpeaking();   // a new question interrupts whatever the agent was still saying
 
   // A pasted JD gets the fit check offered, not the ask loop run on it.
   if(!(opts && opts.skipFitOffer) && CONFIG.generatorUrl && looksLikeJobDescription(q)){
@@ -664,7 +667,8 @@ async function ask(text, opts){
           " and coverage " + r.cov.toFixed(3) + " < " + CONFIG.covThreshold.toFixed(2)
         : "coverage " + r.cov.toFixed(3) + " < " + CONFIG.lexThreshold.toFixed(2))
       + " · refused before the model call · $0.00000";
-    appendRefusal(meta);
+    const refusalEl = appendRefusal(meta);
+    speak(refusalEl.querySelector(".msg-body").textContent);
     updateTracePanel(trace);
     if(CONFIG.generatorUrl){
       fetch(CONFIG.generatorUrl + "/log", {
@@ -692,13 +696,15 @@ async function ask(text, opts){
         setStreamingCaret(msgEl, true);
         msgEl.scrollIntoView({behavior:"smooth", block:"nearest"});
       }, history);
+      state.genFailStreak = 0;
       trace.msGen = performance.now() - g0;
       trace.usage = out.usage;
       trace.ground = checkGrounding(out.text, r.hits);
       setStreamingCaret(msgEl, false);
       renderAnswerIntoMsg(msgEl, out.text, r.hits);
+      speak(out.text);
 
-      if(!trace.ground.ok){
+      if(!trace.ground.ok && !trace.ground.declined){
         const flag = document.createElement("p");
         flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
         flag.textContent = "Groundedness flag: this answer did not cite its sources cleanly. Treat it with suspicion and check the passages below.";
@@ -726,14 +732,21 @@ async function ask(text, opts){
     } catch(err){
       setStreamingCaret(msgEl, false);
       const body = msgEl.querySelector(".msg-body");
-      body.innerHTML = `<p style="color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px">The generator failed (${esc(err.message)}). Falling back is safer than faking it — ask again and you will get the retrieved source passage instead.</p>`;
+      // A per-question streak, not a single strike: generate() already retried once
+      // internally, so reaching here means that retry also failed. One exhausted
+      // question is still just a blip; only consecutive ones justify giving up on
+      // generation for the rest of the session (issue #23).
+      state.genFailStreak++;
+      const disable = state.genFailStreak >= CONFIG.maxGenFailStreak;
+      body.innerHTML = `<p style="color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px">The generator failed (${esc(err.message)}). Falling back is safer than faking it — ask again and you will get the retrieved source passage instead.${disable ? " Generation has now failed repeatedly this session, so it is off for the rest of it." : ""}</p>`;
       if(CONFIG.generatorUrl){
         fetch(CONFIG.generatorUrl + "/log", {method:"POST",headers:{"content-type":"application/json"},
           body:JSON.stringify({question:q, outcome:"error", session_id:state.sessionId,
+            response: String(err.message || "").slice(0,500),
             ...(visitor && {visitor_name:visitor.name, visitor_co:visitor.company})})
         }).catch(()=>{});
       }
-      CONFIG.generatorUrl = "";
+      if(disable) CONFIG.generatorUrl = "";
     }
   } else {
     // retrieval-only mode
@@ -741,6 +754,7 @@ async function ask(text, opts){
     const docIdx = IDS.indexOf(r.hits[0].p.docId);
     const body = msgEl.querySelector(".msg-body");
     body.innerHTML = BANK[docIdx].a + `<p style="color:var(--color-dim);font-size:.79rem;border-top:1px dashed var(--color-divider);padding-top:8px;margin-top:8px">Retrieval-only mode: that is the source passage verbatim, not generated prose. ${CONFIG.generatorUrl ? "The session cost cap was reached." : "No generator endpoint is configured."}</p>`;
+    speak(BANK[docIdx].a);
     renderCitesInMsg(msgEl, r.hits, passCount);
     addTraceLink(msgEl);
   }
@@ -1192,6 +1206,6 @@ async function boot(){
   if(state.vecs.length) scheduleUpgrade();
 }
 
-window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, PARAPHRASE, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, looksLikeJobDescription, bootPerf,
+window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, PARAPHRASE, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, checkGrounding, looksLikeJobDescription, bootPerf, setSyntheticMode,
   get busy(){ return busy; } };
 boot();

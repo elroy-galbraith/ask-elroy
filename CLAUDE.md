@@ -40,7 +40,7 @@ After deploying, paste the worker URL into `CONFIG.generatorUrl` in `src/engine.
 
 ## Architecture
 
-The app is a single `index.html` assembled from eight source files by `build.sh`, in this order:
+The app is a single `index.html` assembled from nine source files by `build.sh`, in this order:
 
 | File | Role |
 |---|---|
@@ -51,6 +51,7 @@ The app is a single `index.html` assembled from eight source files by `build.sh`
 | `src/vectors.js` | Generated. int8 passage vectors + corpus SHA-256 + `pid` list |
 | `src/engine.js` | `CONFIG`, BM25, vector decode, embedding-model cascade, hybrid retrieval, generation proxy call, groundedness check |
 | `src/ui.js` | Chat UI, trace inspector, evaluation runner, boot sequence |
+| `src/voice.js` | Mic input (`SpeechRecognition`) and spoken answers (`speechSynthesis`) — see "Voice interaction" below |
 | `src/tail.html` | Closing tags |
 
 **Boot (see `docs/adr/ADR-0001-ship-to-client-retrieval.md`):**
@@ -89,6 +90,30 @@ A message that looks like a pasted job description short-circuits step 3: `ask()
 The Worker does **no retrieval** — it only holds the API key and proxies the Anthropic stream. The browser supplies the passages; the Worker cannot invent sources.
 
 Without `CONFIG.generatorUrl` set, the app runs in retrieval-only mode (shows verbatim passage text instead of generated prose) — fully functional for testing retrieval and refusal.
+
+## Voice interaction
+
+`src/voice.js` layers voice onto the existing `ask()` loop — it is an input/output adapter, not
+a second pipeline. No new backend, no new secret, no new spend: both directions run entirely on
+the browser's Web Speech API.
+
+- **Input**: the mic button (`#mic-btn`) starts `SpeechRecognition`; on a final transcript it
+  calls `ask(transcript)` directly, same as typing and pressing Ask.
+- **Output**: the speaker toggle (`#voice-btn`, off by default, persisted in `localStorage` under
+  `askElroyVoiceOut`) speaks the finished answer with `speechSynthesis` — the generated answer,
+  the retrieval-only fallback passage, and the refusal message all go through the same `speak()`,
+  which strips citation markers (`CITE_RE`) and HTML tags first. A new question calls
+  `stopSpeaking()` before it does anything else, so it always interrupts a still-talking reply.
+- **Feature detection, not a permissions probe**: both buttons render `display:none` in
+  `src/head.html` and only `voice.js` un-hides the one whose API constructor actually exists
+  (`window.SpeechRecognition || window.webkitSpeechRecognition` for STT, `"speechSynthesis" in
+  window` for TTS). Chrome/Edge have both; Safari and Firefox mostly lack `SpeechRecognition`, so
+  the mic button simply never appears there — the same "a working mode, not an error state"
+  pattern as the hybrid → lexical retrieval fallback. Chrome's `SpeechRecognition` sends audio to
+  Google's servers to do the recognition; there is no purely local STT path in the browser today,
+  which is why this stays opt-in (a click) rather than on by default.
+- `askElroy.voice` (`{ supported, listening, speakOn }`) and `askElroy.speak(text)` are exposed
+  in the console for debugging, same as the rest of the runtime.
 
 ## Editing the corpus
 
@@ -148,6 +173,46 @@ collapsing it, exactly as issue #28's "Honest limitation" predicted. The script'
 (15) is set from this data plus a small margin; re-measure and adjust if the default model
 changes.
 
+## Synthetic traffic
+
+`questions.is_synthetic` (`INTEGER NOT NULL DEFAULT 0`) separates real visitors from
+Elroy's own traffic — the smoke test, ad hoc curl probes after a deploy, and his own dev
+browser. Before this column existed, roughly 76% of logged rows were synthetic, and
+`country` couldn't tell the two apart either: Elroy's own devices geolocate to the same
+country he's based in.
+
+The signal is explicit, never inferred. `isSynthetic()` in `worker/worker.js` checks
+whether `session_id` starts with the reserved prefix `synthetic-`; `logRow()` is the only
+place that sets the column, from that one check.
+
+- `test/smoke.mjs` sets `localStorage["askElroySynthetic"]` via `page.addInitScript()`
+  before every run, so `state.sessionId` in `src/engine.js` picks up the prefix. This is
+  belt-and-suspenders on top of the route-level worker stub in that same file — smoke
+  traffic already never reaches the real worker; this keeps it tagged even if that stub
+  ever regresses.
+- On a dev machine, run `askElroy.setSyntheticMode(true)` once in the console and
+  reload; it persists in `localStorage`, so every future session in that browser is
+  tagged.
+- A manual curl probe after `wrangler deploy` should pass `"session_id":
+  "synthetic-deploy-check"` in the body, for the same reason — see the deploy comment
+  at the top of `worker/worker.js`.
+
+`GET /admin` filters `WHERE is_synthetic = 0` by default; pass `?synthetic=1` to see
+everything, synthetic rows included.
+
+The same filter applies to a manual query, e.g. the refused-question breakdown this fix exists
+to make trustworthy:
+
+```bash
+wrangler d1 execute ask-elroy-log --command "SELECT question, COUNT(*) AS n FROM questions WHERE outcome = 'refused' AND is_synthetic = 0 GROUP BY question ORDER BY n DESC LIMIT 20"
+```
+
+This column is set at write time from that one explicit signal — it is never backfilled.
+Rows logged before 2026-08-28 are all `is_synthetic = 0` regardless of their real origin;
+that default doesn't mean they were real traffic, only that no synthetic signal was
+recorded for them. A `ua`-pattern classification of those old rows is possible but is an
+inferred label, not this column's value, and must never be presented as recorded fact.
+
 ## In-browser debugging
 
 The global `askElroy` exposes the full runtime without a rebuild:
@@ -157,4 +222,5 @@ askElroy.CONFIG.scopeThreshold = 0.40
 await askElroy.retrieve("does he need a visa")
 askElroy.runEval()
 askElroy.bootPerf            // per-stage cold-start timings, also on the Trace tab
+askElroy.setSyntheticMode(true)   // dev-browser opt-in — reload after calling; see "Synthetic traffic"
 ```

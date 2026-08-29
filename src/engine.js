@@ -34,23 +34,54 @@ const CONFIG = {
                                // carries the whole gate and is set to hold the same
                                // refusal rate the two-signal rule achieves (85%)
   maxGenPerSession: 40,        // client-side cost cap
+  // A single generate() failure used to disable the generator for the rest of the
+  // session — one transient upstream blip silently downgraded every later question
+  // to retrieval-only. Now it takes this many *consecutive* failed questions
+  // (ui.js resets the streak on any success) before the session gives up. See
+  // issue #23; the retry inside generate() itself (below) already absorbs most
+  // single blips before they ever count against this streak.
+  maxGenFailStreak: 2,
   price: { in: 1.00, out: 5.00 }  // USD per 1M tokens (claude-haiku-4-5)
 };
+
+// Reserved session_id prefix the worker (worker/worker.js: SYNTHETIC_SESSION_PREFIX)
+// maps to is_synthetic=1. Set only by explicit opt-in below — never inferred.
+const SYNTHETIC_SESSION_PREFIX = "synthetic-";
+const SYNTHETIC_STORAGE_KEY = "askElroySynthetic";
+
+function isSyntheticDevBrowser(){
+  try { return localStorage.getItem(SYNTHETIC_STORAGE_KEY) === "1"; }
+  catch { return false; }
+}
+
+// Console helper for Elroy's own machines: askElroy.setSyntheticMode(true), then
+// reload. Persists in localStorage, so every future session on this browser is
+// tagged without touching any of the call sites that already thread session_id
+// through to the worker.
+function setSyntheticMode(on){
+  try {
+    if(on) localStorage.setItem(SYNTHETIC_STORAGE_KEY, "1");
+    else localStorage.removeItem(SYNTHETIC_STORAGE_KEY);
+  } catch {}
+}
 
 /* ---------------- session identity ----------------
    sessionStorage, not localStorage (issue #29): survives a reload in the same
    tab, dies when the tab closes — the correct boundary for something called a
    session. No TTL — tab lifetime is the boundary. Private mode and blocked
-   site data throw on *access*, not merely return null, so this is wrapped. */
+   site data throw on *access*, not merely return null, so this is wrapped.
+   The synthetic prefix (above) is applied only when minting a fresh id, so a
+   dev browser's tag survives the same reload the id itself now survives. */
 function loadSessionId(){
+  const mint = () => (isSyntheticDevBrowser() ? SYNTHETIC_SESSION_PREFIX : "") + crypto.randomUUID();
   try {
     const existing = sessionStorage.getItem("askElroy.sessionId");
     if(existing) return existing;
-    const fresh = crypto.randomUUID();
+    const fresh = mint();
     sessionStorage.setItem("askElroy.sessionId", fresh);
     return fresh;
   } catch(e){
-    return crypto.randomUUID();
+    return mint();
   }
 }
 
@@ -63,6 +94,7 @@ const state = {
   bm25: null,
   backend: null,
   gens: 0, tokIn: 0, tokOut: 0, costUSD: 0,
+  genFailStreak: 0,
   qcache: new Map(),
   sessionId: loadSessionId()
 };
@@ -308,6 +340,26 @@ async function generate(question, hits, onToken, history, model){
   const body = { question, passages, history: history || [],
                  session_id: state.sessionId, visitor_name: null, visitor_co: null };
   if(model) body.model = model;
+
+  // A 502 or a connection dropped before any content arrives is common enough on
+  // this proxy's upstream to retry transparently, so it never reaches the visitor
+  // as a failed turn (issue #23). Once a token has streamed the visitor has
+  // already seen partial output, so a failure past that point is not retried —
+  // replaying the request would duplicate what is already on screen.
+  let lastErr;
+  for(let attempt = 0; attempt < 2; attempt++){
+    let emitted = false;
+    try{
+      return await requestGenerate(body, tok => { emitted = true; onToken(tok); });
+    } catch(err){
+      lastErr = err;
+      if(emitted) throw err;
+    }
+  }
+  throw lastErr;
+}
+
+async function requestGenerate(body, onToken){
   const res = await fetch(CONFIG.generatorUrl, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -461,8 +513,18 @@ function checkGrounding(text, hits){
   const invalid = [...cited].filter(n => n < 1 || n > hits.length);
   const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 25);
   const withCite = sentences.filter(s => (s.match(CITE_RE) || []).length > 0).length;
+  // worker/worker.js's SYSTEM prompt (rule 3, and the fit/injection rules that mirror
+  // it) tells the model: when the passages don't support an answer, say so plainly and
+  // give the contact email instead of citing anything. That is a correct, deliberately
+  // uncited answer, not a grounding failure — so `ok` alone (which a zero-citation
+  // answer always fails) must not be the only signal a caller uses to decide whether to
+  // show a "treat with suspicion" warning. `declined` names that case the same way the
+  // rule shapes it: no citation attempted at all, paired with the email the rule pairs
+  // it with. `ok` itself is left unchanged so callers scoring known-answerable eval
+  // turns (where a decline IS a real failure) keep their existing strictness.
+  const declined = cited.size === 0 && text.includes(PROFILE.email);
   return {
-    cited: valid, invalid,
+    cited: valid, invalid, declined,
     coverage: sentences.length ? withCite / sentences.length : 1,
     ok: invalid.length === 0 && valid.length > 0
   };

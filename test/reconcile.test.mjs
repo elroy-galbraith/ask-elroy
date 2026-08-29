@@ -56,3 +56,52 @@ test('a spread below the gap line is a gap, not a contest', () => {
   assert.equal(flagged.criteria[0].contested, true);
   assert.equal(flagged.criteria[0].gap, true);
 });
+
+test('floor tier: below 30 is "Not a fit", not another shade of partial', () => {
+  const one = [{ id: 'c1', label: 'x', weight: 1, requires: 'x' }];
+  const belowFloor = reconcile(one, [{ id: 'c1', score: 0 }], [{ id: 'c1', score: 14 }]);
+  assert.equal(belowFloor.overall, 7);
+  assert.equal(belowFloor.tier, 'Not a fit');
+
+  const atFloor = reconcile(one, [{ id: 'c1', score: 20 }], [{ id: 'c1', score: 40 }]); // overall 30
+  assert.equal(atFloor.overall, 30);
+  assert.equal(atFloor.tier, 'Partial fit');
+
+  const justBelowFloor = reconcile(one, [{ id: 'c1', score: 19 }], [{ id: 'c1', score: 39 }]); // overall 29
+  assert.equal(justBelowFloor.overall, 29);
+  assert.equal(justBelowFloor.tier, 'Not a fit');
+});
+
+test('a mid-40s score still reads as a genuine partial fit', () => {
+  const one = [{ id: 'c1', label: 'x', weight: 1, requires: 'x' }];
+  const midForties = reconcile(one, [{ id: 'c1', score: 40 }], [{ id: 'c1', score: 50 }]); // overall 45
+  assert.equal(midForties.overall, 45);
+  assert.equal(midForties.tier, 'Partial fit');
+});
+
+test('hasStrongMatch reflects per-criterion midpoints, not the weighted overall', () => {
+  const rubric2 = [
+    { id: 'c1', label: 'a', weight: 1, requires: 'x' },
+    { id: 'c2', label: 'b', weight: 3, requires: 'x' },
+  ];
+  // one strong pillar (c1 midpoint 70) dragged down by a weak c2 (midpoint 10)
+  // with swapped weights: overall = (1*70 + 3*10)/4 = 25, well below 50
+  // but hasStrongMatch is still true because c1's midpoint 70 clears 50
+  const mixed = reconcile(
+    rubric2,
+    [{ id: 'c1', score: 60 }, { id: 'c2', score: 0 }],
+    [{ id: 'c1', score: 80 }, { id: 'c2', score: 20 }]
+  );
+  assert.equal(mixed.criteria[0].midpoint, 70);
+  assert.equal(mixed.overall, 25);
+  assert.equal(mixed.hasStrongMatch, true);
+
+  const noneStrong = reconcile(
+    rubric2,
+    [{ id: 'c1', score: 20 }, { id: 'c2', score: 10 }],
+    [{ id: 'c1', score: 40 }, { id: 'c2', score: 20 }]
+  );
+  assert.ok(noneStrong.criteria.every(c => c.midpoint < 50));
+  assert.equal(noneStrong.overall, 19);
+  assert.equal(noneStrong.hasStrongMatch, false);
+});

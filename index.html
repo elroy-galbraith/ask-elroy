@@ -85,6 +85,13 @@ body{background:var(--color-bg);color:var(--color-text);font-family:var(--font-b
 .caret{display:inline-block;width:7px;height:15px;background:var(--color-accent);
   vertical-align:-2px;animation:blink .9s steps(1) infinite}
 
+/* --- voice controls --- */
+.btn-icon{background:transparent;border:1px solid var(--color-divider);color:var(--color-text);padding:0 16px;font-size:17px;line-height:1}
+.btn-icon:hover{border-color:var(--color-accent)}
+.btn-icon[aria-pressed="true"]{border-color:var(--color-accent);color:var(--color-accent)}
+@keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--color-bad) 45%,transparent)}50%{box-shadow:0 0 0 7px transparent}}
+#mic-btn.mic-live{border-color:var(--color-bad);color:var(--color-bad);animation:mic-pulse 1.1s ease-in-out infinite}
+
 /* --- eyebrow / label text --- */
 .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent-700);margin-bottom:8px}
 .section-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-accent)}
@@ -677,15 +684,23 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
 <!-- fixed input tray -->
 <div id="input-tray" style="position:fixed;left:0;right:0;bottom:0;background:linear-gradient(to bottom,transparent,var(--color-bg) 34%);padding:36px 40px 22px;pointer-events:none">
   <div style="max-width:1200px;margin:0 auto;pointer-events:auto">
-    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;max-width:860px">
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:10px;max-width:860px">
       <label class="sr" for="q">Ask a question</label>
       <input class="input" type="text" id="q" placeholder="Ask about his work, his stack, work authorization, what he wants next…" autocomplete="off">
+      <button class="btn-icon blueprint" type="button" id="mic-btn" title="Ask by voice" aria-pressed="false" style="display:none">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        🎤
+      </button>
+      <button class="btn-icon blueprint" type="button" id="voice-btn" title="Read answers aloud" aria-pressed="false" style="display:none">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span id="voice-btn-icon">🔇</span>
+      </button>
       <button class="btn btn-primary blueprint" style="padding:0 28px;font-size:15px" id="submit-btn">
         <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
         Ask
       </button>
     </div>
-    <div style="max-width:860px;margin-top:9px;font-size:11.5px;color:var(--color-dim)">Built by Elroy Galbraith as a working sample · retrieval and embedding run in your browser, generation is proxied so no key is exposed · <a id="fmail" href="#" style="color:var(--color-dim)"></a></div>
+    <div style="max-width:860px;margin-top:9px;font-size:11.5px;color:var(--color-dim)">Built by Elroy Galbraith as a working sample · retrieval and embedding run in your browser, generation is proxied so no key is exposed · <a id="fmail" href="#" style="color:var(--color-dim)"></a> <span id="voice-hint" class="mono" style="margin-left:8px;color:var(--color-accent)"></span></div>
   </div>
 </div>
 
@@ -1372,23 +1387,54 @@ const CONFIG = {
                                // carries the whole gate and is set to hold the same
                                // refusal rate the two-signal rule achieves (85%)
   maxGenPerSession: 40,        // client-side cost cap
+  // A single generate() failure used to disable the generator for the rest of the
+  // session — one transient upstream blip silently downgraded every later question
+  // to retrieval-only. Now it takes this many *consecutive* failed questions
+  // (ui.js resets the streak on any success) before the session gives up. See
+  // issue #23; the retry inside generate() itself (below) already absorbs most
+  // single blips before they ever count against this streak.
+  maxGenFailStreak: 2,
   price: { in: 1.00, out: 5.00 }  // USD per 1M tokens (claude-haiku-4-5)
 };
+
+// Reserved session_id prefix the worker (worker/worker.js: SYNTHETIC_SESSION_PREFIX)
+// maps to is_synthetic=1. Set only by explicit opt-in below — never inferred.
+const SYNTHETIC_SESSION_PREFIX = "synthetic-";
+const SYNTHETIC_STORAGE_KEY = "askElroySynthetic";
+
+function isSyntheticDevBrowser(){
+  try { return localStorage.getItem(SYNTHETIC_STORAGE_KEY) === "1"; }
+  catch { return false; }
+}
+
+// Console helper for Elroy's own machines: askElroy.setSyntheticMode(true), then
+// reload. Persists in localStorage, so every future session on this browser is
+// tagged without touching any of the call sites that already thread session_id
+// through to the worker.
+function setSyntheticMode(on){
+  try {
+    if(on) localStorage.setItem(SYNTHETIC_STORAGE_KEY, "1");
+    else localStorage.removeItem(SYNTHETIC_STORAGE_KEY);
+  } catch {}
+}
 
 /* ---------------- session identity ----------------
    sessionStorage, not localStorage (issue #29): survives a reload in the same
    tab, dies when the tab closes — the correct boundary for something called a
    session. No TTL — tab lifetime is the boundary. Private mode and blocked
-   site data throw on *access*, not merely return null, so this is wrapped. */
+   site data throw on *access*, not merely return null, so this is wrapped.
+   The synthetic prefix (above) is applied only when minting a fresh id, so a
+   dev browser's tag survives the same reload the id itself now survives. */
 function loadSessionId(){
+  const mint = () => (isSyntheticDevBrowser() ? SYNTHETIC_SESSION_PREFIX : "") + crypto.randomUUID();
   try {
     const existing = sessionStorage.getItem("askElroy.sessionId");
     if(existing) return existing;
-    const fresh = crypto.randomUUID();
+    const fresh = mint();
     sessionStorage.setItem("askElroy.sessionId", fresh);
     return fresh;
   } catch(e){
-    return crypto.randomUUID();
+    return mint();
   }
 }
 
@@ -1401,6 +1447,7 @@ const state = {
   bm25: null,
   backend: null,
   gens: 0, tokIn: 0, tokOut: 0, costUSD: 0,
+  genFailStreak: 0,
   qcache: new Map(),
   sessionId: loadSessionId()
 };
@@ -1646,6 +1693,26 @@ async function generate(question, hits, onToken, history, model){
   const body = { question, passages, history: history || [],
                  session_id: state.sessionId, visitor_name: null, visitor_co: null };
   if(model) body.model = model;
+
+  // A 502 or a connection dropped before any content arrives is common enough on
+  // this proxy's upstream to retry transparently, so it never reaches the visitor
+  // as a failed turn (issue #23). Once a token has streamed the visitor has
+  // already seen partial output, so a failure past that point is not retried —
+  // replaying the request would duplicate what is already on screen.
+  let lastErr;
+  for(let attempt = 0; attempt < 2; attempt++){
+    let emitted = false;
+    try{
+      return await requestGenerate(body, tok => { emitted = true; onToken(tok); });
+    } catch(err){
+      lastErr = err;
+      if(emitted) throw err;
+    }
+  }
+  throw lastErr;
+}
+
+async function requestGenerate(body, onToken){
   const res = await fetch(CONFIG.generatorUrl, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -1799,8 +1866,18 @@ function checkGrounding(text, hits){
   const invalid = [...cited].filter(n => n < 1 || n > hits.length);
   const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 25);
   const withCite = sentences.filter(s => (s.match(CITE_RE) || []).length > 0).length;
+  // worker/worker.js's SYSTEM prompt (rule 3, and the fit/injection rules that mirror
+  // it) tells the model: when the passages don't support an answer, say so plainly and
+  // give the contact email instead of citing anything. That is a correct, deliberately
+  // uncited answer, not a grounding failure — so `ok` alone (which a zero-citation
+  // answer always fails) must not be the only signal a caller uses to decide whether to
+  // show a "treat with suspicion" warning. `declined` names that case the same way the
+  // rule shapes it: no citation attempted at all, paired with the email the rule pairs
+  // it with. `ok` itself is left unchanged so callers scoring known-answerable eval
+  // turns (where a decline IS a real failure) keep their existing strictness.
+  const declined = cited.size === 0 && text.includes(PROFILE.email);
   return {
-    cited: valid, invalid,
+    cited: valid, invalid, declined,
     coverage: sentences.length ? withCite / sentences.length : 1,
     ok: invalid.length === 0 && valid.length > 0
   };
@@ -1939,7 +2016,9 @@ function updateTracePanel(trace){
   $("#tg-decision").textContent = trace.answered ? "answer" : "refuse";
   $("#tg-retrieve").textContent = Math.round(trace.msRetrieve) + " ms";
   $("#tg-citations").textContent = trace.ground
-    ? (trace.ground.ok ? "valid · " + Math.round(trace.ground.coverage*100) + "% cited" : "FLAG — check answer")
+    ? (trace.ground.ok ? "valid · " + Math.round(trace.ground.coverage*100) + "% cited"
+      : trace.ground.declined ? "declined · no claim to cite"
+      : "FLAG — check answer")
     : (trace.answered ? "n/a" : "n/a");
   $("#tg-tokens").textContent = trace.usage ? trace.usage.input_tokens + " in / " + trace.usage.output_tokens + " out" : "—";
   $("#tg-cost").textContent = trace.usage ? "$" + cost.toFixed(5) : "$0.00000";
@@ -2206,9 +2285,9 @@ function showVisitorForm(card){
    *access*, not merely return null. No TTL — tab lifetime is the boundary. */
 const FIT_STATE_KEY = "askElroy.fitState";
 
-function saveFitState(jdText, panel, narrativeText, groundOk){
+function saveFitState(jdText, panel, narrativeText, groundOk, groundDeclined){
   try {
-    sessionStorage.setItem(FIT_STATE_KEY, JSON.stringify({ jdText, panel, narrativeText, groundOk }));
+    sessionStorage.setItem(FIT_STATE_KEY, JSON.stringify({ jdText, panel, narrativeText, groundOk, groundDeclined }));
   } catch(e){ /* private mode, blocked storage, quota — the scorecard just won't survive a reload */ }
 }
 
@@ -2273,8 +2352,8 @@ async function submitFit(jdText){
     renderAnswerIntoMsg(msgEl, out.text, fakeHits);
 
     const ground = checkGrounding(out.text, fakeHits);
-    if(!ground.ok) appendGroundFlag(msgEl);
-    saveFitState(text, panel, out.text, ground.ok);
+    if(!ground.ok && !ground.declined) appendGroundFlag(msgEl);
+    saveFitState(text, panel, out.text, ground.ok, ground.declined);
 
     state.gens++;
     if(out.usage){
@@ -2307,7 +2386,7 @@ function restoreFitState(){
 
   const fakeHits = state.passages.map(p => ({ p }));
   renderAnswerIntoMsg(msgEl, saved.narrativeText, fakeHits);
-  if(saved.groundOk === false) appendGroundFlag(msgEl);
+  if(saved.groundOk === false && !saved.groundDeclined) appendGroundFlag(msgEl);
 
   const jd = $("#fit-jd");
   if(jd) jd.value = saved.jdText;
@@ -2415,6 +2494,7 @@ async function ask(text, opts){
   const q = String(text).trim();
   if(!q || busy) return;
   visitorDismissed = true;
+  stopSpeaking();   // a new question interrupts whatever the agent was still saying
 
   // A pasted JD gets the fit check offered, not the ask loop run on it.
   if(!(opts && opts.skipFitOffer) && CONFIG.generatorUrl && looksLikeJobDescription(q)){
@@ -2471,7 +2551,8 @@ async function ask(text, opts){
           " and coverage " + r.cov.toFixed(3) + " < " + CONFIG.covThreshold.toFixed(2)
         : "coverage " + r.cov.toFixed(3) + " < " + CONFIG.lexThreshold.toFixed(2))
       + " · refused before the model call · $0.00000";
-    appendRefusal(meta);
+    const refusalEl = appendRefusal(meta);
+    speak(refusalEl.querySelector(".msg-body").textContent);
     updateTracePanel(trace);
     if(CONFIG.generatorUrl){
       fetch(CONFIG.generatorUrl + "/log", {
@@ -2499,13 +2580,15 @@ async function ask(text, opts){
         setStreamingCaret(msgEl, true);
         msgEl.scrollIntoView({behavior:"smooth", block:"nearest"});
       }, history);
+      state.genFailStreak = 0;
       trace.msGen = performance.now() - g0;
       trace.usage = out.usage;
       trace.ground = checkGrounding(out.text, r.hits);
       setStreamingCaret(msgEl, false);
       renderAnswerIntoMsg(msgEl, out.text, r.hits);
+      speak(out.text);
 
-      if(!trace.ground.ok){
+      if(!trace.ground.ok && !trace.ground.declined){
         const flag = document.createElement("p");
         flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
         flag.textContent = "Groundedness flag: this answer did not cite its sources cleanly. Treat it with suspicion and check the passages below.";
@@ -2533,14 +2616,21 @@ async function ask(text, opts){
     } catch(err){
       setStreamingCaret(msgEl, false);
       const body = msgEl.querySelector(".msg-body");
-      body.innerHTML = `<p style="color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px">The generator failed (${esc(err.message)}). Falling back is safer than faking it — ask again and you will get the retrieved source passage instead.</p>`;
+      // A per-question streak, not a single strike: generate() already retried once
+      // internally, so reaching here means that retry also failed. One exhausted
+      // question is still just a blip; only consecutive ones justify giving up on
+      // generation for the rest of the session (issue #23).
+      state.genFailStreak++;
+      const disable = state.genFailStreak >= CONFIG.maxGenFailStreak;
+      body.innerHTML = `<p style="color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px">The generator failed (${esc(err.message)}). Falling back is safer than faking it — ask again and you will get the retrieved source passage instead.${disable ? " Generation has now failed repeatedly this session, so it is off for the rest of it." : ""}</p>`;
       if(CONFIG.generatorUrl){
         fetch(CONFIG.generatorUrl + "/log", {method:"POST",headers:{"content-type":"application/json"},
           body:JSON.stringify({question:q, outcome:"error", session_id:state.sessionId,
+            response: String(err.message || "").slice(0,500),
             ...(visitor && {visitor_name:visitor.name, visitor_co:visitor.company})})
         }).catch(()=>{});
       }
-      CONFIG.generatorUrl = "";
+      if(disable) CONFIG.generatorUrl = "";
     }
   } else {
     // retrieval-only mode
@@ -2548,6 +2638,7 @@ async function ask(text, opts){
     const docIdx = IDS.indexOf(r.hits[0].p.docId);
     const body = msgEl.querySelector(".msg-body");
     body.innerHTML = BANK[docIdx].a + `<p style="color:var(--color-dim);font-size:.79rem;border-top:1px dashed var(--color-divider);padding-top:8px;margin-top:8px">Retrieval-only mode: that is the source passage verbatim, not generated prose. ${CONFIG.generatorUrl ? "The session cost cap was reached." : "No generator endpoint is configured."}</p>`;
+    speak(BANK[docIdx].a);
     renderCitesInMsg(msgEl, r.hits, passCount);
     addTraceLink(msgEl);
   }
@@ -2999,9 +3090,136 @@ async function boot(){
   if(state.vecs.length) scheduleUpgrade();
 }
 
-window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, PARAPHRASE, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, looksLikeJobDescription, bootPerf,
+window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, PARAPHRASE, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, checkGrounding, looksLikeJobDescription, bootPerf, setSyntheticMode,
   get busy(){ return busy; } };
 boot();
+
+/* =====================================================================
+   Voice interaction — Web Speech API only: no new backend, no new
+   secret, no new spend. Two independent pieces:
+     STT  mic button -> SpeechRecognition -> one transcript -> ask()
+     TTS  finished answer -> speechSynthesis, opt-in and off by default
+   Chrome/Edge ship SpeechRecognition; Safari and Firefox mostly do not,
+   so both buttons stay hidden (display:none in src/head.html) unless
+   the constructor the browser actually needs is present — same
+   graceful-degradation shape as the hybrid/lexical retrieval fallback:
+   a working page either way, never an error state.
+   ===================================================================== */
+
+const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+const VOICE_OUT_KEY = "askElroyVoiceOut";
+
+const voice = {
+  supported: { stt: !!SpeechRecognitionCtor, tts: "speechSynthesis" in window },
+  listening: false,
+  speakOn: false
+};
+
+// Answers carry citation markers ([1], [30, 41]) and the retrieval-only fallback
+// hands over raw answer HTML — neither belongs in speech.
+function stripForSpeech(text){
+  return String(text)
+    .replace(CITE_RE, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function setVoiceHint(text){
+  const el = $("#voice-hint");
+  if(el) el.textContent = text || "";
+}
+
+function stopSpeaking(){
+  if(voice.supported.tts) speechSynthesis.cancel();
+}
+
+function speak(text){
+  if(!voice.supported.tts || !voice.speakOn) return;
+  const clean = stripForSpeech(text);
+  if(!clean) return;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(new SpeechSynthesisUtterance(clean));
+}
+
+function setSpeakOn(on){
+  voice.speakOn = on;
+  try{ localStorage.setItem(VOICE_OUT_KEY, on ? "1" : "0"); } catch {}
+  const btn = $("#voice-btn"), icon = $("#voice-btn-icon");
+  if(icon) icon.textContent = on ? "🔊" : "🔇";
+  if(btn){
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.title = on ? "Voice replies on — click to mute" : "Voice replies off — click to enable";
+  }
+  if(!on) stopSpeaking();
+}
+
+function initVoiceOut(){
+  const btn = $("#voice-btn");
+  if(!btn || !voice.supported.tts) return;
+  btn.style.display = "";
+  let saved = false;
+  try{ saved = localStorage.getItem(VOICE_OUT_KEY) === "1"; } catch {}
+  setSpeakOn(saved);
+  btn.onclick = () => setSpeakOn(!voice.speakOn);
+}
+
+function initMic(){
+  const btn = $("#mic-btn");
+  if(!btn || !voice.supported.stt) return;
+  btn.style.display = "";
+
+  const rec = new SpeechRecognitionCtor();
+  rec.lang = (navigator.language || "en-US");
+  rec.interimResults = true;
+  rec.maxAlternatives = 1;
+
+  const qEl = $("#q");
+
+  function setListening(on){
+    voice.listening = on;
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.classList.toggle("mic-live", on);
+    setVoiceHint(on ? "listening…" : "");
+  }
+
+  rec.onresult = e => {
+    let finalText = "", interim = "";
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const r = e.results[i];
+      if(r.isFinal) finalText += r[0].transcript;
+      else interim += r[0].transcript;
+    }
+    if(qEl) qEl.value = (finalText || interim).trim();
+    if(finalText.trim()) rec.stop();
+  };
+  rec.onend = () => {
+    setListening(false);
+    const q = qEl ? qEl.value.trim() : "";
+    if(q) ask(q);
+  };
+  rec.onerror = e => {
+    setListening(false);
+    setVoiceHint(e.error === "not-allowed" || e.error === "service-not-allowed"
+      ? "microphone permission denied"
+      : "voice input error: " + e.error);
+  };
+
+  btn.onclick = () => {
+    if(voice.listening){ rec.stop(); return; }
+    stopSpeaking();   // don't record over the agent's own reply
+    if(qEl) qEl.value = "";
+    setListening(true);
+    try{ rec.start(); }
+    catch(err){ setListening(false); setVoiceHint("could not start microphone"); }
+  };
+}
+
+initMic();
+initVoiceOut();
+
+window.askElroy.voice = voice;
+window.askElroy.speak = speak;
 </script>
 </body>
 </html>

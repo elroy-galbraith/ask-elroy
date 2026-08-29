@@ -85,6 +85,13 @@ body{background:var(--color-bg);color:var(--color-text);font-family:var(--font-b
 .caret{display:inline-block;width:7px;height:15px;background:var(--color-accent);
   vertical-align:-2px;animation:blink .9s steps(1) infinite}
 
+/* --- voice controls --- */
+.btn-icon{background:transparent;border:1px solid var(--color-divider);color:var(--color-text);padding:0 16px;font-size:17px;line-height:1}
+.btn-icon:hover{border-color:var(--color-accent)}
+.btn-icon[aria-pressed="true"]{border-color:var(--color-accent);color:var(--color-accent)}
+@keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--color-bad) 45%,transparent)}50%{box-shadow:0 0 0 7px transparent}}
+#mic-btn.mic-live{border-color:var(--color-bad);color:var(--color-bad);animation:mic-pulse 1.1s ease-in-out infinite}
+
 /* --- eyebrow / label text --- */
 .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent-700);margin-bottom:8px}
 .section-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-accent)}
@@ -677,15 +684,23 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
 <!-- fixed input tray -->
 <div id="input-tray" style="position:fixed;left:0;right:0;bottom:0;background:linear-gradient(to bottom,transparent,var(--color-bg) 34%);padding:36px 40px 22px;pointer-events:none">
   <div style="max-width:1200px;margin:0 auto;pointer-events:auto">
-    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;max-width:860px">
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:10px;max-width:860px">
       <label class="sr" for="q">Ask a question</label>
       <input class="input" type="text" id="q" placeholder="Ask about his work, his stack, work authorization, what he wants next…" autocomplete="off">
+      <button class="btn-icon blueprint" type="button" id="mic-btn" title="Ask by voice" aria-pressed="false" style="display:none">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        🎤
+      </button>
+      <button class="btn-icon blueprint" type="button" id="voice-btn" title="Read answers aloud" aria-pressed="false" style="display:none">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span id="voice-btn-icon">🔇</span>
+      </button>
       <button class="btn btn-primary blueprint" style="padding:0 28px;font-size:15px" id="submit-btn">
         <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
         Ask
       </button>
     </div>
-    <div style="max-width:860px;margin-top:9px;font-size:11.5px;color:var(--color-dim)">Built by Elroy Galbraith as a working sample · retrieval and embedding run in your browser, generation is proxied so no key is exposed · <a id="fmail" href="#" style="color:var(--color-dim)"></a></div>
+    <div style="max-width:860px;margin-top:9px;font-size:11.5px;color:var(--color-dim)">Built by Elroy Galbraith as a working sample · retrieval and embedding run in your browser, generation is proxied so no key is exposed · <a id="fmail" href="#" style="color:var(--color-dim)"></a> <span id="voice-hint" class="mono" style="margin-left:8px;color:var(--color-accent)"></span></div>
   </div>
 </div>
 

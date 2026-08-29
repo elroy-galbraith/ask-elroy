@@ -32,7 +32,12 @@ p.on('pageerror', e => errs.push('PAGEERROR: ' + e.message + '\n' + (e.stack || 
 const isWorker = u => u.hostname.endsWith('workers.dev') || u.hostname === 'stub.invalid';
 const stubbed = { generate: 0, log: 0, fit: 0, fitScore: 0 };
 const sse = body => ({ status: 200, contentType: 'text/event-stream; charset=utf-8', body });
-const json = body => ({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+const json = (body, status) => ({ status: status || 200, contentType: 'application/json', body: JSON.stringify(body) });
+
+// Set to N to fail the next N generate calls with a 502 before falling back to the
+// real stub response — used below to exercise generate()'s internal retry and the
+// ui.js failure streak (issue #23) without ever touching the real worker.
+let generateFailCount = 0;
 
 await p.route(isWorker, route => {
   const path = new URL(route.request().url()).pathname;
@@ -55,6 +60,10 @@ await p.route(isWorker, route => {
     return route.fulfill(sse('data: {"choices":[{"delta":{"content":"Strong matches: solid overlap [1]."}}]}\n\ndata: [DONE]\n\n'));
   }
   stubbed.generate++;
+  if (generateFailCount > 0) {
+    generateFailCount--;
+    return route.fulfill(json({ error: 'upstream 502' }, 502));
+  }
   // The shape the worker really emits, with a citation, so the streaming parser and
   // the groundedness check are exercised rather than skipped.
   return route.fulfill(sse(
@@ -78,6 +87,11 @@ p.on('request', r => {
   foreignOrigins.add(u.origin);
 });
 
+// Belt-and-suspenders on top of the route-level stub above: even if a request
+// ever slipped past it, this tags it is_synthetic=1 in the worker instead of
+// silently mixing into the real visitor log. See CLAUDE.md > Synthetic traffic.
+await p.addInitScript(() => { try { localStorage.setItem('askElroySynthetic', '1'); } catch {} });
+
 const tBoot = Date.now();
 await p.goto('file://' + root + '/index.html');
 // The page must be answerable off the precomputed vectors alone — no model, no CDN.
@@ -97,6 +111,12 @@ console.log('passages  :', boot.passages);
 console.log('cold start:', `${bootMs} ms wall-clock · ${boot.total} ms in-page · vectors decoded in ${boot.decode} ms`);
 if (boot.vecs !== boot.passages) errs.push(`VECTORS: ${boot.vecs} decoded for ${boot.passages} passages`);
 if (bootMs > 3000) errs.push(`COLD START: ${bootMs} ms to answerable — precomputed vectors should make this near-instant`);
+
+const sessionId = await p.evaluate(() => window.askElroy.state.sessionId);
+console.log('session   :', sessionId);
+if (!sessionId.startsWith('synthetic-')) {
+  errs.push(`SYNTHETIC FLAG: session_id "${sessionId}" missing the reserved prefix — smoke traffic would log as a real visitor if it ever reached the worker`);
+}
 
 async function ask(q) {
   await p.fill('#q', q);
@@ -128,6 +148,37 @@ const citeRefs = await p.evaluate(() => {
 console.log('citations :', citeRefs.map(r => r.n + (r.hasTitle ? '\u2713' : '\u2717')).join(' '));
 if (citeRefs.length !== 3) errs.push(`CITATIONS: ${citeRefs.length} hoverable indices rendered, expected 3 ([1] plus the grouped [1, 2])`);
 if (citeRefs.some(r => !r.hasTitle)) errs.push('CITATIONS: an index rendered with no passage tooltip');
+
+// ---- Groundedness check must not flag an honest decline as suspicious ----
+// worker/worker.js's SYSTEM prompt (rule 3) tells the model: when the passages
+// don't support an answer, say so plainly and give the contact email instead
+// of citing anything. That's a correct, deliberately uncited answer — the live
+// chat UI used to slap a "did not cite its sources cleanly ... treat it with
+// suspicion" warning on it anyway, because checkGrounding() only ever looked
+// at citation shape. Exercised directly against the real corpus's email
+// (window.askElroy.PROFILE isn't exposed, so this hardcodes the same address
+// CLAUDE.md and worker/worker.js do) rather than through a stubbed generate
+// call, since it is the pure citation-shape function that changed.
+const groundCheck = await p.evaluate(() => {
+  const A = window.askElroy;
+  const hits = [{}, {}];
+  return {
+    decline: A.checkGrounding(
+      'The provided passages do not contain that detail. Please reach out directly at elroy.galbraith@gmail.com.',
+      hits),
+    hallucinated: A.checkGrounding(
+      'He worked at a company called Vandelay Industries from 2011 to 2013.',
+      hits),
+    grounded: A.checkGrounding('He led the AI layer on a support agent project [1].', hits),
+  };
+});
+console.log('grounding :', `decline ok=${groundCheck.decline.ok} declined=${groundCheck.decline.declined}  ` +
+  `uncited-claim ok=${groundCheck.hallucinated.ok} declined=${groundCheck.hallucinated.declined}  ` +
+  `cited ok=${groundCheck.grounded.ok}`);
+if (!groundCheck.decline.declined) errs.push('GROUNDEDNESS: an honest "passages do not contain" decline (with contact email) was not recognized as a decline');
+if (groundCheck.hallucinated.declined) errs.push('GROUNDEDNESS: an uncited factual claim with no decline language was wrongly recognized as a decline');
+if (groundCheck.hallucinated.ok) errs.push('GROUNDEDNESS: an uncited factual claim was not flagged (ok=true) — citation-shape checking regressed');
+if (!groundCheck.grounded.ok || groundCheck.grounded.declined) errs.push('GROUNDEDNESS: a normal cited answer was incorrectly flagged as ungrounded or declined');
 
 await p.click('#tab-advanced');
 await p.click('#advtab-eval');
@@ -258,6 +309,30 @@ if (gateCheck.skipped) {
     }
   }
 }
+
+// ---- A transient generator failure is retried, not a session-ending event ----
+// issue #23: one upstream blip used to disable CONFIG.generatorUrl permanently,
+// silently downgrading every later question to retrieval-only, and the error row
+// logged no reason. One failed attempt (retried internally by generate() before
+// any token streams) must recover silently; only failStreak-many *consecutive*
+// exhausted questions may disable generation.
+generateFailCount = 1; // one 502, then the retry succeeds
+const retried = await ask('how do you evaluate a chatbot');
+console.log('retry     :', retried);
+if (/generator failed/i.test(retried)) errs.push('RETRY: a single upstream blip surfaced as a failed turn instead of being retried');
+const genUrlAfterRetry = await p.evaluate(() => window.askElroy.CONFIG.generatorUrl);
+if (!genUrlAfterRetry) errs.push('RETRY: a single transient failure disabled generation for the rest of the session');
+
+const failStreak = await p.evaluate(() => window.askElroy.CONFIG.maxGenFailStreak);
+generateFailCount = failStreak * 2; // exhaust the internal retry on every one of the streak's questions
+let lastFail = '';
+for (let i = 0; i < failStreak; i++) lastFail = await ask('how do you evaluate a chatbot');
+console.log('streak    :', `${failStreak} consecutive exhausted questions -> "${lastFail.slice(0, 60)}"`);
+if (!/generator failed/i.test(lastFail)) errs.push('STREAK: expected the exhausted questions to surface an error');
+const genUrlAfterStreak = await p.evaluate(() => window.askElroy.CONFIG.generatorUrl);
+if (genUrlAfterStreak) errs.push(`STREAK: generation should be off after ${failStreak} consecutive exhausted failures`);
+generateFailCount = 0;
+await p.evaluate(() => { window.askElroy.CONFIG.generatorUrl ||= 'https://stub.invalid'; });
 
 // ---- sessionId and the fit scorecard survive a same-tab reload (issue #29) ----
 // sessionId used to be crypto.randomUUID() held only in memory: a reload lost the
