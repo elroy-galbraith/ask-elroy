@@ -254,8 +254,10 @@ reproducible, and it is three of the four paid calls; `/fit` stays a live stream
 prose still reads as written for the reader in front of it.
 
 Hits are countable, not assumed — a hit logs `outcome = 'fit_score_cached'` where a live
-pass logs `'fit_score'`, and every response carries `x-fit-cache: hit|miss|bypass`
-(CORS-exposed, so `curl -i` after a deploy can read it):
+pass logs `'fit_score'`, and every response that got as far as a key carries
+`x-fit-cache: hit|miss|bypass`, the 502 from a failed score included (CORS-exposed, so
+`curl -i` after a deploy can read it). The 400s are returned before there is a key, so
+they carry no verdict:
 
 ```bash
 wrangler d1 execute ask-elroy-log --command "SELECT outcome, COUNT(*) AS n FROM questions WHERE outcome LIKE 'fit_score%' AND is_synthetic = 0 GROUP BY outcome"

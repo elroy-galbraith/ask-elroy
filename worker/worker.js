@@ -627,6 +627,10 @@ export async function handleScore(request, env, ctx) {
     ctx.waitUntil(logRow(env, request, logQuestion, "fit_score_cached", session_id, visitor_name, visitor_co, JSON.stringify(cached)));
     return json(cached, 200, { "x-fit-cache": "hit" });
   }
+  // Every response from here on reports the verdict, the 502 included — on a failed
+  // score the first thing worth knowing is whether the cache was even in play. The
+  // 400s above are returned before there is a key, so they carry no verdict to report.
+  const cacheHeader = { "x-fit-cache": cacheKey ? "miss" : "bypass" };
 
   let panel;
   try {
@@ -650,13 +654,13 @@ export async function handleScore(request, env, ctx) {
 
     panel = reconcile(rubric, skepticScores, advocateScores);
   } catch (e) {
-    return json({ error: "scoring failed", detail: String(e).slice(0, 200) }, 502);
+    return json({ error: "scoring failed", detail: String(e).slice(0, 200) }, 502, cacheHeader);
   }
 
   ctx.waitUntil(logRow(env, request, logQuestion, "fit_score", session_id, visitor_name, visitor_co, JSON.stringify(panel)));
   ctx.waitUntil(writeFitCache(env, cacheKey, model, corpus_sha, panel));
 
-  return json(panel, 200, { "x-fit-cache": cacheKey ? "miss" : "bypass" });
+  return json(panel, 200, cacheHeader);
 }
 
 async function collectResponse(stream) {

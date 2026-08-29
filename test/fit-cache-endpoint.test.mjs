@@ -171,6 +171,24 @@ test('a submission below the input floor is rejected before the cache', async ()
   } finally { globalThis.fetch = realFetch; }
 });
 
+/* On a failed score the first thing worth knowing is whether the cache was in play,
+   so the 502 carries the verdict too — the 400s do not, being returned before there
+   is a key to report on. */
+test('a scoring failure still reports the cache verdict', async () => {
+  const realFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => ({ ok: false, status: 500, text: async () => 'upstream down' });
+    const { env, cacheSize } = stubEnv();
+
+    const { ctx, settle } = stubCtx();
+    const res = await handleScore(stubRequest(submission()), env, ctx);
+    await settle();
+    assert.equal(res.status, 502);
+    assert.equal(res.headers.get('x-fit-cache'), 'miss');
+    assert.equal(cacheSize(), 0, 'a failed score must not be cached');
+  } finally { globalThis.fetch = realFetch; }
+});
+
 /* A cache is an optimisation: a D1 outage must degrade to a live score, not a 500. */
 test('a broken cache still returns a panel', async () => {
   const realFetch = globalThis.fetch;
