@@ -65,6 +65,26 @@ function setSyntheticMode(on){
   } catch {}
 }
 
+/* ---------------- session identity ----------------
+   sessionStorage, not localStorage (issue #29): survives a reload in the same
+   tab, dies when the tab closes — the correct boundary for something called a
+   session. No TTL — tab lifetime is the boundary. Private mode and blocked
+   site data throw on *access*, not merely return null, so this is wrapped.
+   The synthetic prefix (above) is applied only when minting a fresh id, so a
+   dev browser's tag survives the same reload the id itself now survives. */
+function loadSessionId(){
+  const mint = () => (isSyntheticDevBrowser() ? SYNTHETIC_SESSION_PREFIX : "") + crypto.randomUUID();
+  try {
+    const existing = sessionStorage.getItem("askElroy.sessionId");
+    if(existing) return existing;
+    const fresh = mint();
+    sessionStorage.setItem("askElroy.sessionId", fresh);
+    return fresh;
+  } catch(e){
+    return mint();
+  }
+}
+
 const state = {
   mode: "booting",            // booting | hybrid | lexical
   ready: false,
@@ -76,7 +96,7 @@ const state = {
   gens: 0, tokIn: 0, tokOut: 0, costUSD: 0,
   genFailStreak: 0,
   qcache: new Map(),
-  sessionId: (isSyntheticDevBrowser() ? SYNTHETIC_SESSION_PREFIX : "") + crypto.randomUUID()
+  sessionId: loadSessionId()
 };
 
 /* ---------------- text utils ---------------- */

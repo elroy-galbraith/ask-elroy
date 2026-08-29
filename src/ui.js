@@ -396,6 +396,33 @@ function showVisitorForm(card){
   setTimeout(() => card.querySelector("#vf-name").focus(), 0);
 }
 
+/* ---- fit-check persistence (issue #29) ----
+   sessionStorage, wrapped: private mode and blocked site data throw on
+   *access*, not merely return null. No TTL — tab lifetime is the boundary. */
+const FIT_STATE_KEY = "askElroy.fitState";
+
+function saveFitState(jdText, panel, narrativeText, groundOk, groundDeclined){
+  try {
+    sessionStorage.setItem(FIT_STATE_KEY, JSON.stringify({ jdText, panel, narrativeText, groundOk, groundDeclined }));
+  } catch(e){ /* private mode, blocked storage, quota — the scorecard just won't survive a reload */ }
+}
+
+function loadFitState(){
+  try {
+    const raw = sessionStorage.getItem(FIT_STATE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e){
+    return null;
+  }
+}
+
+function appendGroundFlag(msgEl){
+  const flag = document.createElement("p");
+  flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
+  flag.textContent = "Groundedness flag: this assessment did not cite its sources cleanly. Treat it with suspicion.";
+  msgEl.querySelector(".msg-body").appendChild(flag);
+}
+
 async function submitFit(jdText){
   const text = jdText.trim();
   if(!text || busy) return;
@@ -441,12 +468,8 @@ async function submitFit(jdText){
     renderAnswerIntoMsg(msgEl, out.text, fakeHits);
 
     const ground = checkGrounding(out.text, fakeHits);
-    if(!ground.ok && !ground.declined){
-      const flag = document.createElement("p");
-      flag.style.cssText = "color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px;margin-top:8px";
-      flag.textContent = "Groundedness flag: this assessment did not cite its sources cleanly. Treat it with suspicion.";
-      msgEl.querySelector(".msg-body").appendChild(flag);
-    }
+    if(!ground.ok && !ground.declined) appendGroundFlag(msgEl);
+    saveFitState(text, panel, out.text, ground.ok, ground.declined);
 
     state.gens++;
     if(out.usage){
@@ -465,6 +488,25 @@ async function submitFit(jdText){
     msgEl.querySelector(".msg-body").innerHTML = `<p style="color:var(--color-bad);font-size:.85rem;border-left:3px solid var(--color-bad);padding-left:9px">The fit check failed (${esc(err.message)}). Try again or email <a href="mailto:${esc(PROFILE.email)}" style="color:var(--color-accent)">${esc(PROFILE.email)}</a> directly.</p>`;
   }
   busy = false;
+}
+
+function restoreFitState(){
+  const saved = loadFitState();
+  if(!saved || !saved.jdText || !saved.narrativeText) return false;
+
+  visitorDismissed = true;
+  mountVisitorCard();
+  appendUserMsg("How well does this role match Elroy's background?");
+  const msgEl = appendBotMsg("Fit assessment", "restored from this session");
+  if(saved.panel) renderFitPanel(saved.panel);
+
+  const fakeHits = state.passages.map(p => ({ p }));
+  renderAnswerIntoMsg(msgEl, saved.narrativeText, fakeHits);
+  if(saved.groundOk === false && !saved.groundDeclined) appendGroundFlag(msgEl);
+
+  const jd = $("#fit-jd");
+  if(jd) jd.value = saved.jdText;
+  return true;
 }
 
 function renderSuggest(list, heading){
@@ -1139,7 +1181,9 @@ async function boot(){
 
   // the greeting lives in the hero now — the thread opens straight on the suggestions
   renderSuggest(null);
-  mountVisitorCard();
+  let restored = false;
+  try { restored = restoreFitState(); } catch(e){ console.error("fit state restore failed —", e.message); }
+  if(restored) showTab("chat"); else mountVisitorCard();
 
   // Open in lexical mode. BM25 is not a holding pattern: it has its own calibrated
   // gate (CONFIG.lexThreshold) and answers most of the golden set on its own, so the
