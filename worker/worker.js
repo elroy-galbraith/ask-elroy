@@ -173,6 +173,26 @@ export function assertFullCoverage(rubric, scored, label) {
 // should pass it too. See CLAUDE.md > Synthetic traffic.
 const SYNTHETIC_SESSION_PREFIX = "synthetic-";
 
+// Fit-input floor (issue #25). The browser refuses to submit a one-word "job
+// description" (fitInputTooThin() in src/ui.js), but the endpoint must not depend on
+// client state to avoid paying for one — /fit and /fit/score are open POST routes.
+//
+// Same rule and same numbers as the client, deliberately: a floor that disagreed with
+// the browser's would either reject something the page had just promised to score, or
+// let through what the page had just refused. Words OR characters, because a Japanese
+// posting carries its substance without spaces. This is a floor against trivial input,
+// not an abuse control — it stops a paid pass on a role title, nothing more.
+const MIN_JD_WORDS = 8;
+const MIN_JD_CHARS = 50;
+const JD_TOO_THIN_DETAIL = "Paste the full job description — a title alone isn't enough to score against.";
+
+export function jdTooThin(jd_text) {
+  const t = String(jd_text || "").trim();
+  if (!t) return true;
+  if (t.length >= MIN_JD_CHARS) return false;
+  return t.split(/\s+/).filter(Boolean).length < MIN_JD_WORDS;
+}
+
 export function isSynthetic(session_id) {
   return typeof session_id === "string" && session_id.startsWith(SYNTHETIC_SESSION_PREFIX);
 }
@@ -425,6 +445,7 @@ async function handleFit(request, env, ctx) {
   const assessment = body.assessment && typeof body.assessment === "object" ? body.assessment : null;
 
   if (!jd_text) return json({ error: "jd_text required" }, 400);
+  if (jdTooThin(jd_text)) return json({ error: "jd_text too short", detail: JD_TOO_THIN_DETAIL }, 400);
   if (!passages.length) return json({ error: "passages required" }, 400);
 
   const context = passages
@@ -498,6 +519,7 @@ async function handleScore(request, env, ctx) {
   const visitor_co = String(body.visitor_co || "").slice(0, 100) || null;
 
   if (!jd_text) return json({ error: "jd_text required" }, 400);
+  if (jdTooThin(jd_text)) return json({ error: "jd_text too short", detail: JD_TOO_THIN_DETAIL }, 400);
   if (!passages.length) return json({ error: "passages required" }, 400);
 
   const context = passages

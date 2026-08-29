@@ -225,6 +225,7 @@ details[open] summary span:first-child{transform:rotate(90deg);display:inline-bl
           Assess fit →
         </button>
       </div>
+      <p id="fit-hint" role="status" aria-live="polite" style="display:none;margin:12px 0 0;font-size:13.5px;line-height:1.55;color:var(--color-bad);border-left:3px solid var(--color-bad);padding-left:9px;max-width:56ch"></p>
     </div>
   </div>
 
@@ -2307,9 +2308,69 @@ function appendGroundFlag(msgEl){
   msgEl.querySelector(".msg-body").appendChild(flag);
 }
 
+/* ---- fit-input floor (issue #25) ----
+   Every Fit tab submission spends two paid passes — the rubric/skeptic/advocate
+   panel and the narrative. A visitor once submitted a single word and got the
+   full pipeline plus a courteous scorecard explaining that the job description
+   consisted of one word. So the tab gets a floor.
+
+   This deliberately does NOT reuse looksLikeJobDescription(). That predicate is
+   tuned for precision on the *chat* box, where a false positive costs one wrong
+   offer: it demands 220 characters plus corroborating JD vocabulary, which would
+   reject a terse but real posting — exactly what someone on this tab is asking to
+   have scored. Nor does JD vocabulary earn a shorter input a pass: "Requirements:
+   5+ years of experience" is six words and three markers, and scoring a fragment
+   is the artefact this issue exists to stop.
+
+   What is left is a floor on substance, not a classifier: reject what cannot be a
+   job description, admit everything else and let the model be honest about thin
+   input. Words OR characters, because a Japanese posting carries its substance
+   without spaces — a CJK role title runs ~15 characters, a CJK posting far more.
+   The bar sits below the shortest posting this repo treats as real (the 11-word
+   fixture in test/smoke.mjs) and above a role title with its location and
+   employment type. worker/worker.js applies the same rule server-side. */
+const FIT_MIN_WORDS = 8;
+const FIT_MIN_CHARS = 50;
+
+function fitInputTooThin(text){
+  const t = String(text).trim();
+  if(!t) return true;
+  if(t.length >= FIT_MIN_CHARS) return false;
+  return t.split(/\s+/).filter(Boolean).length < FIT_MIN_WORDS;
+}
+
+const FIT_TOO_THIN_MSG = "Paste the full job description — a title alone isn't enough to score against.";
+
+function showFitHint(msg){
+  const el = $("#fit-hint");
+  if(!el) return;
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+function clearFitHint(){
+  const el = $("#fit-hint");
+  if(el){ el.textContent = ""; el.style.display = "none"; }
+}
+
 async function submitFit(jdText){
   const text = jdText.trim();
   if(!text || busy) return;
+
+  // Refuse before any spend, and say what the field wants rather than going quiet.
+  // Reachable only from the Fit tab in practice: anything that clears
+  // looksLikeJobDescription() (220+ chars) clears this floor by a wide margin, so
+  // the chat offer path cannot land here. showTab("fit") is belt-and-braces — the
+  // message must not be written to a pane nobody is looking at.
+  if(fitInputTooThin(text)){
+    showTab("fit");
+    showFitHint(FIT_TOO_THIN_MSG);
+    const jd = $("#fit-jd");
+    if(jd) jd.focus();
+    return;
+  }
+  clearFitHint();
+
   busy = true;
   showTab("chat");
   visitorDismissed = true;
@@ -2978,6 +3039,8 @@ const fitBtn = $("#fit-btn");
 if(fitBtn) fitBtn.onclick = () => submitFit($("#fit-jd").value);
 const fitJd = $("#fit-jd");
 if(fitJd) fitJd.onkeydown = e => { if(e.key === "Enter" && (e.ctrlKey || e.metaKey)){ e.preventDefault(); submitFit(fitJd.value); } };
+// The floor's complaint should stop nagging the moment it is being addressed.
+if(fitJd) fitJd.oninput = () => clearFitHint();
 $("#runeval").onclick     = () => runEval();
 $("#rungeneval").onclick  = () => runGenEval();
 ["modelA","modelB"].forEach(id => { const el = $("#"+id); if(el) el.oninput = updateGenCostEst; });
@@ -3090,7 +3153,7 @@ async function boot(){
   if(state.vecs.length) scheduleUpgrade();
 }
 
-window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, PARAPHRASE, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, checkGrounding, looksLikeJobDescription, bootPerf, setSyntheticMode,
+window.askElroy = { state, CONFIG, BANK, IDS, GOLDEN, PARAPHRASE, OOS, CONV_GOLDEN, GEN_SUITE, retrieve, runEval, ask, generateFit, generateScore, checkGrounding, looksLikeJobDescription, fitInputTooThin, bootPerf, setSyntheticMode,
   get busy(){ return busy; } };
 boot();
 

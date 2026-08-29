@@ -218,7 +218,38 @@ if (!tableAgrees.card.startsWith(tableAgrees.pass + ' of ')) {
 await p.evaluate(() => { window.askElroy.CONFIG.generatorUrl ||= 'https://stub.invalid'; });
 
 await p.click('#tab-fit');
+
+// ---- Fit-input floor (issue #25) — trivial input must not reach a paid pass.
+// Runs before the valid submission below so a leftover .fit-panel cannot mask it.
+const callsBefore = stubbed.fit + stubbed.fitScore;
+await p.fill('#fit-jd', 'Engineer');
+await p.click('#fit-btn');
+await p.waitForTimeout(300);
+const thin = await p.evaluate(() => ({
+  rows:  document.querySelectorAll('.fit-row').length,
+  hint:  (document.querySelector('#fit-hint')?.textContent || '').trim(),
+  shown: document.querySelector('#fit-hint')?.style.display !== 'none',
+  onFit: document.querySelector('#pane-fit')?.style.display !== 'none',
+  word:  window.askElroy.fitInputTooThin('Engineer'),
+  title: window.askElroy.fitInputTooThin('Senior Machine Learning Engineer'),
+  real:  window.askElroy.fitInputTooThin('Senior Go engineer building RAG systems; must lead a small team.'),
+  ja:    window.askElroy.fitInputTooThin('シニアバックエンドエンジニア')
+}));
+const thinCalls = stubbed.fit + stubbed.fitScore - callsBefore;
+console.log('fit floor :', `${thinCalls} paid calls | hint "${thin.hint.slice(0, 40)}…" | still on fit tab ${thin.onFit}`);
+// The point of the floor is the spend, so assert on the request count, not the UI.
+if (thinCalls) errs.push('FIT FLOOR: a one-word submission still reached the worker');
+if (thin.rows) errs.push('FIT FLOOR: a one-word submission still rendered a scorecard');
+if (!thin.shown || !thin.hint) errs.push('FIT FLOOR: no hint shown for a one-word submission');
+if (!thin.onFit) errs.push('FIT FLOOR: rejection switched away from the Fit tab');
+if (!thin.word || !thin.title || thin.real || !thin.ja) {
+  errs.push('FIT FLOOR: predicate disagrees — ' + JSON.stringify(thin));
+}
+
+// Typing again clears the complaint, and a short-but-real posting still scores.
 await p.fill('#fit-jd', 'Senior Go engineer building RAG systems; must lead a small team.');
+const hintCleared = await p.evaluate(() => document.querySelector('#fit-hint')?.style.display === 'none');
+if (!hintCleared) errs.push('FIT FLOOR: hint did not clear on input');
 await p.click('#fit-btn');
 await p.waitForSelector('.fit-panel', { timeout: 15000 });
 const tierTxt = (await p.textContent('.fit-tier')) || '';
