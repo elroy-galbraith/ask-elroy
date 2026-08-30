@@ -20,6 +20,11 @@
  * notice it by.
  *   wrangler d1 execute ask-elroy-log --command "ALTER TABLE questions ADD COLUMN is_synthetic INTEGER NOT NULL DEFAULT 0"
  *
+ * The fit_cache table (issue #30) is different: a missing table is harmless, because
+ * both the read and the write swallow their errors and the endpoint just scores live.
+ * So this one can be run before or after the deploy, and re-running it costs nothing:
+ *   wrangler d1 execute ask-elroy-log --command "CREATE TABLE IF NOT EXISTS fit_cache (key TEXT PRIMARY KEY, ts TEXT NOT NULL, model TEXT NOT NULL, corpus_sha TEXT NOT NULL, panel TEXT NOT NULL)"
+ *
  *   wrangler secret put OPENROUTER_API_KEY
  *   wrangler secret put ADMIN_TOKEN
  *   wrangler deploy
@@ -197,10 +202,88 @@ export function isSynthetic(session_id) {
   return typeof session_id === "string" && session_id.startsWith(SYNTHETIC_SESSION_PREFIX);
 }
 
+/* ---- fit panel cache (issue #30) ------------------------------------------
+ *
+ * A byte-identical job description used to run the whole panel again — a rubric
+ * call plus two scoring calls — and could come back with a different number.
+ * SCORE_TEMPERATURE narrows that spread (issue #28) but cannot close it; only a
+ * cache makes a repeat submission reproducible. It happened in real traffic: the
+ * same JD scored twice within seconds.
+ *
+ * Exact input only. Serving a cached report for a *similar* JD was considered and
+ * rejected: two postings for the same title at different employers sit at very high
+ * embedding similarity while differing on exactly the requirements that drive the
+ * score, so a near-miss hit would show someone a confident scorecard for a role they
+ * did not submit. The failure is silent and the citations stop corresponding to their
+ * requirements. See issue #30 for the full argument.
+ *
+ * Only the panel is cached, not the narrative. The panel is the number that has to
+ * be reproducible, and it is three of the four paid calls; /fit stays a live stream
+ * so the prose still reads as written for the reader in front of it.
+ */
+const FIT_CACHE_KEY_VERSION = "v1";
+
+// trim, collapse whitespace, casefold. Nothing cleverer on purpose: a rule that
+// normalized away real content (punctuation, say) would start serving one posting's
+// scorecard for another's — the near-match failure this cache is built to avoid.
+export function normalizeJd(text) {
+  return String(text || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+async function sha256Hex(str) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, "0")).join("");
+}
+
+/* The key covers every input the panel is a function of.
+ *
+ * - model, because a model change must not serve panels the old one produced.
+ * - corpusSha, the build identity the browser declares from VECTORS.corpusSha256.
+ *   Without it, editing BANK would leave cached scorecards citing passages that
+ *   have moved, and the citations would silently stop matching the corpus.
+ * - passagesDigest, of the passage block the worker actually assembled. corpusSha
+ *   is a claim the client makes about itself and /fit/score is an open POST route:
+ *   on the sha alone, a caller could store a panel scored against passages it
+ *   invented under a key real visitors then read. Hashing what was really scored
+ *   keeps a lying caller inside its own key space.
+ *
+ * Fields are NUL-joined so they cannot run together — "gpt" + "4o" and "gpt4" + "o"
+ * are different keys.
+ */
+export async function fitCacheKey(jd_text, model, corpusSha, passagesDigest) {
+  return sha256Hex([
+    FIT_CACHE_KEY_VERSION, normalizeJd(jd_text), String(model), String(corpusSha), String(passagesDigest)
+  ].join("\u0000"));
+}
+
+// Both sides swallow their errors. A cache is an optimisation: if the table is
+// missing or D1 is unhappy, /fit/score must score live and return a panel, never
+// a 500. That is also why the schema change can be applied after the deploy.
+export async function readFitCache(env, key) {
+  if (!env.DB || !key) return null;
+  try {
+    const row = await env.DB.prepare("SELECT panel FROM fit_cache WHERE key = ?").bind(key).first();
+    return row && row.panel ? JSON.parse(row.panel) : null;
+  } catch (_) { return null; }
+}
+
+export async function writeFitCache(env, key, model, corpus_sha, panel) {
+  if (!env.DB || !key) return;
+  try {
+    await env.DB.prepare(
+      "INSERT OR REPLACE INTO fit_cache (key, ts, model, corpus_sha, panel) VALUES (?, ?, ?, ?, ?)"
+    ).bind(key, new Date().toISOString(), String(model), String(corpus_sha), JSON.stringify(panel)).run();
+  } catch (_) { /* fire-and-forget — a cache write must never reach the client */ }
+}
+
 const cors = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET, POST, OPTIONS",
-  "access-control-allow-headers": "content-type, authorization"
+  "access-control-allow-headers": "content-type, authorization",
+  // so a browser (and a curl -i after a deploy) can read the cache verdict off
+  // /fit/score without the flag having to ride inside the panel JSON, where it
+  // would end up in the <assessment> block the narrative prompt is given.
+  "access-control-expose-headers": "x-fit-cache"
 };
 
 export default {
@@ -506,7 +589,7 @@ async function handleFit(request, env, ctx) {
   });
 }
 
-async function handleScore(request, env, ctx) {
+export async function handleScore(request, env, ctx) {
   let body;
   try { body = await request.json(); }
   catch { return json({ error: "invalid JSON" }, 400); }
@@ -517,6 +600,10 @@ async function handleScore(request, env, ctx) {
   const session_id = String(body.session_id || "").slice(0, 100) || null;
   const visitor_name = String(body.visitor_name || "").slice(0, 100) || null;
   const visitor_co = String(body.visitor_co || "").slice(0, 100) || null;
+  // The build the browser is running, from VECTORS.corpusSha256. A client that does
+  // not declare one (a stale tab, a hand-rolled curl) is simply not cached: without
+  // it there is nothing to invalidate the entry when the corpus moves under it.
+  const corpus_sha = String(body.corpus_sha || "").slice(0, 64).trim() || null;
 
   if (!jd_text) return json({ error: "jd_text required" }, 400);
   if (jdTooThin(jd_text)) return json({ error: "jd_text too short", detail: JD_TOO_THIN_DETAIL }, 400);
@@ -525,6 +612,25 @@ async function handleScore(request, env, ctx) {
   const context = passages
     .map((p, i) => `[${i + 1}] ${String(p.title || "").slice(0, 200)}\n${String(p.text || "").slice(0, 1500)}`)
     .join("\n\n");
+
+  const logQuestion = "[fit score] " + jd_text.slice(0, 200);
+
+  // Cache lookup sits after the input gates, so a refused submission is never keyed,
+  // and before the model calls, which is the whole point — a hit costs nothing.
+  const cacheKey = corpus_sha
+    ? await fitCacheKey(jd_text, model, corpus_sha, await sha256Hex(context))
+    : null;
+  const cached = await readFitCache(env, cacheKey);
+  if (cached) {
+    // A distinct outcome, so hit rate is countable rather than assumed:
+    //   SELECT outcome, COUNT(*) FROM questions WHERE outcome LIKE 'fit_score%' GROUP BY outcome
+    ctx.waitUntil(logRow(env, request, logQuestion, "fit_score_cached", session_id, visitor_name, visitor_co, JSON.stringify(cached)));
+    return json(cached, 200, { "x-fit-cache": "hit" });
+  }
+  // Every response from here on reports the verdict, the 502 included — on a failed
+  // score the first thing worth knowing is whether the cache was even in play. The
+  // 400s above are returned before there is a key, so they carry no verdict to report.
+  const cacheHeader = { "x-fit-cache": cacheKey ? "miss" : "bypass" };
 
   let panel;
   try {
@@ -548,15 +654,13 @@ async function handleScore(request, env, ctx) {
 
     panel = reconcile(rubric, skepticScores, advocateScores);
   } catch (e) {
-    return json({ error: "scoring failed", detail: String(e).slice(0, 200) }, 502);
+    return json({ error: "scoring failed", detail: String(e).slice(0, 200) }, 502, cacheHeader);
   }
 
-  ctx.waitUntil((async () => {
-    const q = "[fit score] " + jd_text.slice(0, 200);
-    await logRow(env, request, q, "fit_score", session_id, visitor_name, visitor_co, JSON.stringify(panel));
-  })());
+  ctx.waitUntil(logRow(env, request, logQuestion, "fit_score", session_id, visitor_name, visitor_co, JSON.stringify(panel)));
+  ctx.waitUntil(writeFitCache(env, cacheKey, model, corpus_sha, panel));
 
-  return json(panel);
+  return json(panel, 200, cacheHeader);
 }
 
 async function collectResponse(stream) {
@@ -605,9 +709,9 @@ export async function logRow(env, request, question, outcome, session_id, visito
   } catch (_) { /* fire-and-forget — DB errors must never reach the client */ }
 }
 
-function json(o, status) {
+function json(o, status, extraHeaders) {
   return new Response(JSON.stringify(o), {
     status: status || 200,
-    headers: { ...cors, "content-type": "application/json" }
+    headers: { ...cors, "content-type": "application/json", ...(extraHeaders || {}) }
   });
 }

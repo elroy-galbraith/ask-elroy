@@ -36,6 +36,10 @@ wrangler deploy
 wrangler secret put ANTHROPIC_API_KEY
 ```
 
+Schema changes go through `worker/schema.sql`, which carries the migration for each column
+or table added since the first deploy, and a note on whether it has to run before
+`wrangler deploy` or can follow it.
+
 After deploying, paste the worker URL into `CONFIG.generatorUrl` in `src/engine.js` (line 13), then rebuild.
 
 ## Architecture
@@ -129,6 +133,10 @@ When adding an entry:
    build if the vectors and the corpus disagree. Commit `src/vectors.js` with the change.
 5. Open the Evaluation tab to verify.
 
+The new `corpusSha256` retires every cached fit panel on its own — the key stops matching,
+so no scorecard survives citing a passage that has moved. The orphaned rows linger until
+pruned; see "The fit-panel cache" below.
+
 ## Tuning the scope gate
 
 The gate reads **two** signals and needs either one: max dense cosine
@@ -195,8 +203,8 @@ a scoring task, not prose generation, so it must not sample at the provider's de
 temperature. `callJSON()` sends `temperature: SCORE_TEMPERATURE` (0) and a fixed
 `seed: SCORE_SEED` on every panel call. Neither is a determinism guarantee — batching and
 MoE routing still introduce provider-side variance — they narrow the distribution, they
-don't collapse it. Full exact-input reproducibility needs a response cache (#30) on top of
-this.
+don't collapse it. Exact-input reproducibility comes from the panel cache on top of this —
+see "The fit-panel cache" below.
 
 `test/fit-score-stability.mjs` scores a fixed job description N times against a **local**
 worker (`cd worker && npx wrangler dev`) and asserts the spread of `overall` stays inside a
@@ -211,6 +219,72 @@ fixed JD (two batches, 5 and 10) scored 42-53, spread 11 and 7 respectively, clu
 collapsing it, exactly as issue #28's "Honest limitation" predicted. The script's tolerance
 (15) is set from this data plus a small margin; re-measure and adjust if the default model
 changes.
+
+## The fit-panel cache
+
+`/fit/score` caches the reconciled panel on an **exact-input** key, in a `fit_cache`
+table in the existing D1 database (`worker/schema.sql`). Before this, a byte-identical
+job description ran the rubric call plus both scoring calls again and could come back
+with a different number — it happened in real traffic, the same JD scored twice within
+seconds. `SCORE_TEMPERATURE` (#28) narrows that spread; only the cache closes it.
+
+The key is `sha256("v1" \0 normalize(jd_text) \0 model \0 corpus_sha \0 sha256(passage block))`,
+built by `fitCacheKey()` in `worker/worker.js`. `normalize` is trim, collapse
+whitespace, casefold — nothing cleverer, because anything that normalized away real
+content would start serving one posting's scorecard for another's. Fields are
+NUL-joined so adjacent ones cannot run together (`"gpt" + "4o"` must not equal
+`"gpt4" + "o"`).
+
+Each component earns its place:
+
+- **model** — already per-request. A model change must not serve panels the old one produced.
+- **corpus_sha** — the browser's `VECTORS.corpusSha256`, sent by `generateScore()` in
+  `src/engine.js`. Without it, editing `BANK` would leave cached scorecards citing
+  passages that have moved, and the citations would silently stop matching the corpus.
+  A client that doesn't declare one is therefore **not cached at all**
+  (`x-fit-cache: bypass`); it scores live every time.
+- **passage digest** — of the block the worker actually assembled. `corpus_sha` is a
+  claim the client makes about itself and `/fit/score` is an open POST route; on the
+  sha alone a caller could store a panel scored against passages it invented, under a
+  key real visitors then read. Hashing what was really scored keeps a lying caller
+  inside its own key space.
+
+**Only the panel is cached, not the narrative.** The panel is the number that has to be
+reproducible, and it is three of the four paid calls; `/fit` stays a live stream so the
+prose still reads as written for the reader in front of it.
+
+Hits are countable, not assumed — a hit logs `outcome = 'fit_score_cached'` where a live
+pass logs `'fit_score'`, and every response that got as far as a key carries
+`x-fit-cache: hit|miss|bypass`, the 502 from a failed score included (CORS-exposed, so
+`curl -i` after a deploy can read it). The 400s are returned before there is a key, so
+they carry no verdict:
+
+```bash
+wrangler d1 execute ask-elroy-log --command "SELECT outcome, COUNT(*) AS n FROM questions WHERE outcome LIKE 'fit_score%' AND is_synthetic = 0 GROUP BY outcome"
+```
+
+The cache is an optimisation and never load-bearing: `readFitCache()`/`writeFitCache()`
+swallow their errors, so a missing table or an unhappy D1 means the endpoint scores live
+and returns a panel — never a 500. That is why the `fit_cache` migration, unlike
+`questions.is_synthetic`, is safe to run before *or* after `wrangler deploy`. Entries are
+never *served* after a model or corpus change — the key stops matching — but they do
+linger; `worker/schema.sql` carries the `DELETE` for pruning orphans.
+
+**Near-match caching was considered and rejected.** Two postings for the same title at
+different employers sit at very high embedding similarity while differing on exactly the
+requirements that drive the score, so a similarity hit would show someone a confident
+scorecard for a role they did not submit, with citations that no longer correspond to
+their requirements — silent and confidently wrong. Score proximity is not
+substitutability either: two unrelated roles in observed traffic, one infrastructure and
+one application development, both landed at 44 for entirely different reasons. If a
+similarity feature is wanted later, the safe shape is a *suggestion* ("you scored a
+similar role earlier — view it?") with a fresh run remaining the default. Full argument:
+issue #30.
+
+`test/fit-cache.test.mjs` covers the key and the storage helpers; `test/fit-cache-endpoint.test.mjs`
+drives `handleScore()` against a stubbed upstream and asserts the acceptance directly —
+a repeat submission returns the identical panel and reaches the model zero times.
+`test/smoke.mjs` asserts the browser half: that the page sends its `corpus_sha`.
 
 ## Synthetic traffic
 

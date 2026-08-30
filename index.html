@@ -1851,6 +1851,12 @@ async function generateScore(jdText, visitorName, visitorCo){
     body: JSON.stringify({
       jd_text: String(jdText).slice(0, 4000),
       passages,
+      // Which corpus these passages came from. The worker keys its panel cache on it
+      // (issue #30), so editing BANK retires the old scorecards instead of leaving
+      // them citing passage numbers that have since moved. Guarded the same way
+      // decodeVectors() guards: a bundle without src/vectors.js should degrade to an
+      // uncached live score, not throw on the way to one.
+      corpus_sha: (typeof VECTORS !== "undefined" && VECTORS) ? VECTORS.corpusSha256 : null,
       session_id: state.sessionId,
       visitor_name: visitorName || null,
       visitor_co: visitorCo || null
